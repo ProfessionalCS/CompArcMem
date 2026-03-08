@@ -1,180 +1,188 @@
 `timescale 1ns/1ps
 
-// Load to store forwarding
-
-// Separate load and store instead of combined
-
-// figure out how to implement both combined and separate
-// A combined load-store queue (LSQ) with 16 entries.
-
-//     "Combined" means that there is a single hardware buffer which contains both loads and stores
-
-
-// ------------------- Load-Store Queue -------------------
-// Responsibilities:
-// 1, 16 entries (all loads and stores that enter LSQ before getting to the cache)
-// 2. RAW (load after store) forwarding
-// 3. Stores are commited in order
-// 4. Memory ordering is true (load and store respect memory dependencies)
-// 5. Stores can be resolved OOO (both values and addresses)
-// 6.
-
-// Loads must search stores before them in the queue. 
-
-// Stores must search operations after the
-
-// loads can violate ordering with earlier stores
-
-// both loads and stores in program order.
-
-// entries have resolved and unresolved
-
-
-
-// -------------------------------------
-
-// Current plan:
-// Instruction
-//    to
-// Load-Store Queue (LSQ) -- memory ordering
-//    to
-// L1 dTLB (virtual → physical) -- address translation
-//    to
-// L1 Data Cache (VIPT) -- cache stores data
-//    to
-// L2 Cache (PIPT) -- store data
-//    to
-// DRAM
-
-// LSQ
-// 16 entries
-// Keep track of all loads and stores
-// Correct memory ordering
-// store to load forwarding
-// OOO execution of the memory operations (but stores are not commit quite yet)
-
-// Entry fields?precise exceptions
-// valid
-// load or store type
-// address
-// is address valid?
-// store data
-// data valid?
-
-// Loads
-// wait for query
-// wait for address to finish computing
-// search all earlier stores
-// check the following cases (slides)
-
-// Cases ^^^
-// 1.
-// Matching store (so store and load addr are teh same)
-// forward the store data to the load
-// Loads do NOT need to access cache data
-// 2.
-// earlier store is not resolved yet (address is not valid)
-// store will resolve later (stall any loads later than it)
-// WHEN STORES RESOLVES
-// search later loads and stores so that you can update those fields
-
-// Data for stores are resolved 
-// maintain precise exceptions + speculative execution
-// 3.
-// no conflicts
-// load can access L1 cache (no dependences in the LSQ)
-
-
-// Stores are moved to L1
-// modify cache line (in the cache, not in the LSQ)
-// Dirty lines can be evicted to L2 then to memory
-
-
-// Ideas to implement:
-// load and store queue (supposed to be combined first) -- EC is figuring out how to have them separate
-// head and tail pointers (circular if possible)
-    // standard, indicate empty indicate full
-
-// check address match vectors
-
-
-// TLB
-// lu addr and 
-
-
-// Request the address 
-
-
-
+// ----------------------------------------------------------------------------------------------------
+// 
+// Format of LSQ entry
+//
+// ----------------------------------------------------------------------------------------------------
 
 // Format of entry:
+// Valid            | 1b          | Active instruction vs. inactive instruction
+// Resolved         | 1b          | Address has been calculated by the processor
+// Addr             | 48b         | Address
+// Value Valid      | 1b          | Data is valid (for stores)
+// Data             | 64b         | Data
+// Trace ID         | 4b          | Trace ID for matching with trace lines
+// SQ Tail          | 3b          | Only for store queue, indicates the position in the store queue for forwarding
+// LQ Tail          | 3b          | Only for load queue, indicates the position in the load queue for forwarding
+// Total: 1 + 1 + 1 + 48 + 64 + 4 + 3 + 3 = 125 bits per entry
 
-// TODO: addr, whether load or store, valid addr, valid data
-// Addr 48b
-// Data 64b (relevant for stores, but for loads, just fill the 64 bits in)
-// L or S 1b
-// Valid 1b         // Related to finding the addr?
-// Resolved 1b      // Related to finding the data? (store)
-// Exec (operation completed) 1b
-// Total: 48 + 64 + 1 + 1 + 1 = 115b TODO: fix this
+// ----------------------------------------------------------------------------------------------------
+// 
+// Helpers
+//
+// ----------------------------------------------------------------------------------------------------
 
-// Queue (literal queue, no additional LSQ)
+// Queue (literal queue for managing adding and removing entries, no additional LSQ)
 // Assume load and store queue both get 8 entries for 16 total entries
-module queue #(parameter int N = 8) (
+module queue #(
+    parameter int N = 8,
+    parameter int ENTRY_SIZE = 125,
+) (
     input logic clk,
     input logic rst_n, // Assume active low reset
 
     input logic enqueue, // Signal to add an entry to the queue
     input logic dequeue, // Signal to remove an entry from the queue
-    input logic [114:0] entry, // Either load or store entry
+    input logic [ENTRY_SIZE-1:0] entry, // Either load or store entry
 
-    output logic [$clog2(N)-1:0][114:0] entries, // I want to expose the inner workings of the queue for matching vectors
+    input logic update,  // Signal to update an entry in the queue
+    input logic [$clog2(N)-1:0] update_idx,
+
+    // Internals exposed as outputs
+    output logic [$clog2(N)-1:0] head,
+    output logic [$clog2(N)-1:0] tail,
+    output logic [$clog2(N)-1:0][ENTRY_SIZE-1:0] entries, // I want to expose the inner workings of the queue for matching vectors
+    
     output logic success,
 );
+    localparam VALID_IDX = ENTRY_SIZE - 1;
 
-logic [$clog2(N)-1:0] head = 0; // Head ptr
-logic [$clog2(N)-1:0] tail = 0; // Tail ptr
+    logic [$clog2(N)-1:0] head_ptr, tail_ptr;
+    assign head = head_ptr;
+    assign tail = tail_ptr;
+    // Check if full (tail has caught up with the head, so one index less than head, with wraparound)
+    logic is_full, is_empty;
+    assign is_full = ((tail_ptr + 1) % N == head_ptr);
+    assign is_empty = (tail_ptr == head_ptr); // Check if empty (tail is equal to the head)
 
-// Check if full (tail has caught up with the head, so one index less than head, with wraparound)
-logic is_full;
-assign is_full = ((tail + 1) % N == head);
-// Check if empty (tail is equal to the head)
-logic is_empty;
-assign is_empty = (tail == head);
+    // Synchronous
+    // Add entry and remove entries from the queue
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            head_ptr <= 0;
+            tail_ptr <= 0;
+            success <= 0;
+            for (int i=0; i<N; i++)
+                entries[i] <= '0;
 
-// Synchronous
-// Add entry and remove entries from the queue
-always_ff @(posedge clk or negedge rst_n) begin
+        end else begin
+            // Resolving addresses
+            if (update) begin
+                entries[update_idx] <= entry;
+            end
 
-    if (!rst_n) begin
-        head <= 0;
-        tail <= 0;
-        success <= 0;
-        // TODO: clear all entries at the beginning
+            success <= 0; // Default to unsuccessful unless we do an enqueue or dequeue successfully
+            // Queue and dequeue operations
+            if (enqueue && !is_full) begin   // Add entry to the queue if not full
+                // Add entry to the queue at tail index
+                entries[tail_ptr] <= entry;
+                tail_ptr <= (tail_ptr + 1) % N; // Move tail ptr with wraparound
+                success <= 1; // Indicate successful enqueue
 
-    end else if (entry && !is_full && enqueue) begin   // Add entry to the queue if not full
-        // Add entry to the queue at tail index
-        entries[tail] <= entry;
-        tail <= (tail + 1) % N; // Move tail ptr with wraparound
-        success <= 1; // Indicate successful enqueue
-
-    end else if (!is_empty && dequeue) begin // Remove entry from the queue if not empty (consider entry this resolved)
-        // TODO: Remove entry at head index (return)
-        head <= (head + 1) % N; // Move head ptr with wraparound
-        success <= 1; // Indicate successful dequeue
-
-    end else if (!enqueue && !dequeue) begin
-        success <= 0; // No operation, clear success signal
-
-    end else begin
-        success <= 0; // Indicate unsuccessful enqueue/ dequeue (queue full or empty)
+            end else if (dequeue && !is_empty) begin // Remove entry from the queue if not empty (consider entry this resolved)
+                entries[head_ptr][VALID_IDX] <= 0; // Indicate invalid upon dequeue (committed instruction)
+                head_ptr <= (head_ptr + 1) % N; // Move head ptr with wraparound
+                success <= 1; // Indicate successful dequeue
+        end
     end
-
-end
 
 endmodule : queue
 
+// Combinational logic helper for finding matching EA amongst all load and store queues
+// Incorporates before and after logic (from the slides)
+module match #(
+    parameter int Q_SIZE = 8,
+    parameter int ENTRY_SIZE = 125,
+    parameter int EA_SIZE = 48, // Num of bits in the EA
+) (
+    input logic [EA_SIZE-1:0] ea, // The EA to compare with
 
+    input logic [Q_SIZE-1:0][ENTRY_SIZE-1:0] entries, // With only EA and valid+resolved bits exposed
+    output logic [Q_SIZE-1:0] matches,
+);
+    localparam VALID_IDX = ENTRY_SIZE - 1;
+    localparam RESOLVED_IDX = VALID_IDX - 1;
+    localparam EA_IDX = RESOLVED_IDX - 1;
+
+    // Find matching EA
+    always_comb begin : match_EA
+        // Synthesizeable for loop (parallel comparators)
+        for (int i = 0; i < Q_SIZE; i++) begin
+            matches[i] = (entries[i][EA_IDX:EA_IDX-EA_SIZE] == ea) &&
+                        entries[i][VALID_IDX] &&     // Check if valid bit is set (non-retired instruction)
+                        entries[i][RESOLVED_IDX];    // Check if resolved bit is set (EA has been resolved) 
+        end
+    end
+
+endmodule : match
+
+// Combinational logic helper for finding before and after matches
+// before(j) returns a bit vector that contains a 1 for all valid queue entries that are before position j
+// after(j) returns a bit vector that contains a 1 for all valid queue entries that are after position j
+module before_and_after #(
+    parameter int Q_SIZE = 8,
+    parameter int ENTRY_SIZE = 125,
+    parameter int EA_SIZE = 48,
+) (
+    input logic [$clog2(Q_SIZE)-1:0] head,
+    input logic [$clog2(Q_SIZE)-1:0] tail,
+    input logic [$clog2(Q_SIZE)-1:0] j,
+
+    input logic [Q_SIZE-1:0][ENTRY_SIZE-1:0] entries, // With only EA and valid+resolved bits exposed
+
+    output logic [Q_SIZE-1:0] before_matches,
+    output logic [Q_SIZE-1:0] after_matches,
+);
+    localparam VALID_IDX = ENTRY_SIZE - 1;
+    localparam RESOLVED_IDX = VALID_IDX - 1;
+    localparam EA_IDX = RESOLVED_IDX - 1;
+
+    // Get the valid bits (active entries, active but may not be resolved instructions)
+    logic [Q_SIZE-1:0] valid_bits;
+    always_comb begin : get_valid_bits
+        for (int i = 0; i < Q_SIZE; i++) begin
+            valid_bits[i] = entries[i][VALID_IDX];
+        end 
+    end
+
+    logic [Q_SIZE-1:0] prec_head, prec_tail, prec_j, map_tail, map_j;
+    logic [Q_SIZE-1:0] raw_before, raw_after;
+
+    always_comb begin
+        // Helper prec and map functions
+        // prec(j) returns bit vector of 1s for all queue entries before j
+        prec_head = (Q_SIZE'(1) << head) - 1'b1;    // Bit vector of size 8 shifted by head and indicate 1s where everything else is after head
+        prec_tail = (Q_SIZE'(1) << tail) - 1'b1;
+        prec_j = (Q_SIZE'(1) << j) - 1'b1;
+        // map(j) returns bit vector of 1 at position j and 0s elsewhere
+        map_tail = Q_SIZE'(1) << tail;
+        map_j = Q_SIZE'(1) << j;
+
+        // before(j) logic 
+        if (j >= head) 
+            raw_before = ~prec_head & prec_j;
+        else
+            raw_before = ~prec_head | prec_j;
+
+        // after(j) logic 
+        if (j <= tail) 
+            raw_after = ~prec_j & ~map_j & (prec_tail | map_tail);
+        else
+            raw_after = (~prec_j | prec_tail | map_tail) & ~map_j;
+
+        // Combine calculated masks with the valid bits of the entries
+        before_matches = raw_before & valid_bits;
+        after_matches  = raw_after  & valid_bits;
+    end
+    
+endmodule
+
+// ----------------------------------------------------------------------------------------------------
+// 
+// Load-Store Queue (LSQ)
+//
+// ----------------------------------------------------------------------------------------------------
 
 // Enum provided by the assignment
 typedef enum logic[2:0] {
@@ -185,118 +193,280 @@ typedef enum logic[2:0] {
 } op_e;
 
 // Load store queue (LSQ) (aka the controller module)
-module lsq (
+module lsq # (parameter int N = 16) (
     input logic clk,
     input logic rst_n, // Assume active low rese
 
     // Signals predefined from the traces that get fed into the LSQ
-    logic [120:0] trace_line, // Break this trace line into different components
+    input logic [120:0] trace_line, // Break this trace line into different components
 
     // Signls to the TLB
+    output logic tlb_req,
+    output logic [29:0] tlb_paddr,
 
     // Signals to the L1 cache
+    // TODO
 );
+    op_e trace_op;
+    logic [3:0] trace_id;
+    assign trace_id = trace_line[51:48];
+    logic [47:0] trace_vaddr;
+    logic trace_vaddr_is_valid;     // Only relevant to mem operations
+    logic trace_value_is_valid;     // Only relevant to store operations
+    logic [63:0] trace_value;       // Only relevant to store operations
+    logic [29:0] trace_tlb_paddr;   // Only relevant to TLB fill operations
 
-op_e trace_op;
-assign trace_op = trace_line[54:52];
-logic [3:0] trace_id;
-assign trace_id = trace_line[51:48];
-logic [47:0] trace_vaddr;
-assign trace_vaddr = trace_line[47:0];
-logic trace_vaddr_is_valid;
-assign trace_vaddr_is_valid = trace_line[55];   // Only relevant to mem operations
-logic trace_value_is_valid;
-assign trace_value_is_valid = trace_line[120];  // Only relevant to store operations
-logic [63:0] trace_value;
-assign trace_value = trace_line[119:56];        // Only relevant to store operations
-logic [29:0] trace_tlb_paddr;
-assign trace_tlb_paddr = trace_line[85:56];     // Only relevant to TLB fill operations
+    localparam int LOAD_QUEUE_SIZE = N>>1;  // 16 entries -> 8 loads and 8 stores
+    localparam int STORE_QUEUE_SIZE = N>>1;
+    localparam ENTRY_SIZE = 125;
+    localparam EA_SIZE = 48;
+    localparam DATA_SIZE = 64;
 
-localparam int LOAD_QUEUE_SIZE = 8;
-localparam int STORE_QUEUE_SIZE = 8;
+    localparam VALID_IDX = ENTRY_SIZE - 1;
+    localparam RESOLVED_IDX = VALID_IDX - 1;
+    localparam EA_IDX = RESOLVED_IDX - 1;
+    localparam VVALID_IDX = EA_IDX - EA_SIZE - 1;
+    localparam DATA_IDX = VVALID_IDX - 1;
+    localparam TRACE_ID_IDX = DATA_IDX - DATA_SIZE - 1;
+    localparam SQ_TAIL_IDX = TRACE_ID_IDX - 4 - 1;
+    localparam LQ_TAIL_IDX = SQ_TAIL_IDX - 3 - 1;
 
-// Load and store queues
-wire [$clog2(LOAD_QUEUE_SIZE)-1:0][114:0] load_entries;
-wire [$clog2(STORE_QUEUE_SIZE)-1:0][114:0] store_entries;
+    // Format of entry:
+    // Valid            | 1b          | Active instruction vs. inactive instruction
+    // Resolved         | 1b          | Address has been calculated by the processor
+    // Value Valid      | 1b          | Data is valid (for stores)
+    // Addr             | 48b         | Address
+    // Data             | 64b         | Data
+    // Trace ID         | 4b          | Trace ID for matching with trace lines
+    // SQ Tail          | 3b          | Only for store queue, indicates the position in the store queue for forwarding
+    // LQ Tail          | 3b          | Only for load queue, indicates the position in the load queue for forwarding
 
-// Match bit vector
+    logic [3:0] trace_id_prev;
 
-// Init load queue
-queue #(.N(LOAD_QUEUE_SIZE)) load_queue (
-    .clk(clk),
-    .rst_n(rst_n),
-    .enqueue(), // TODO: connect enqueue signal
-    .dequeue(), // TODO: connect dequeue signal
-    .entry(),   // TODO: connect entry signal
-    .entries(load_entries),
-    .success(),
-);
+    // Load and store queues
+    wire [LOAD_QUEUE_SIZE-1:0][ENTRY_SIZE-1:0] load_entries;
+    wire [STORE_QUEUE_SIZE-1:0][ENTRY_SIZE-1:0] store_entries;
+    wire [LOAD_QUEUE_SIZE-1:0] load_matches;
+    wire [STORE_QUEUE_SIZE-1:0] store_matches;
+    wire [ENTRY_SIZE-1:0] entry;
 
-// Init store queue
-queue #(.N(STORE_QUEUE_SIZE)) store_queue (
-    .clk    (clk),
-    .rst_n(rst_n),
-    .enqueue(), // TODO: connect enqueue signal
-    .dequeue(), // TODO: connect dequeue signal
-    .entry(),   // TODO: connect entry signal
-    .entries(store_entries),
-    .success(),
-);
+    wire enqueue_load, enqueue_store;
+    wire dequeue_load, dequeue_store;
+    wire [LOAD_QUEUE_SIZE-1:0] load_head, load_tail;
+    wire [STORE_QUEUE_SIZE-1:0] store_head, store_tail;
+    wire load_success, store_success;
 
-// Basic operationsoperations
-// 1. Find all operations that match EA (combinational)
-// The entries from each queue are exposed for us to find matches
-always_comb begin : match_addr
-    // Synthesizeable for loop (parallel comparators)
-    // https://verificationacademy.com/forums/t/synthesizable-loop/34146/2
-    for (int i = 0; i < LOAD_QUEUE_SIZE; i++) begin
-        // TODO
-    end
+    logic load_update, store_update;
+    logic [$clog2(LOAD_QUEUE_SIZE)-1:0] load_update_idx;
+    logic [$clog2(STORE_QUEUE_SIZE)-1:0] store_update_idx;
 
-    for (int i = 0; i < STORE_QUEUE_SIZE; i++) begin
-        // TODO
-    end
-end
+    logic [STORE_QUEUE_SIZE-1:0] stores_before_load_mask, stores_after_store_mask;
+    logic [LOAD_QUEUE_SIZE-1:0]  loads_after_store_mask;
 
-// Synchronous
-always_ff @(posedge clk or negedge rst_n) begin : controller
-    if (!rst_n) begin
-        // TODO
-
-    end else begin
-        // At any point in time of these operations,
-        // Default to requesting from the TLB
-
-        case (trace_op)
-            OP_MEM_LOAD: begin
-                end
-            OP_MEM_STORE: begin
-                end
-            OP_MEM_RESOLVE: begin   // Resolve unresolved address
-                end
-            OP_TLB_FILL: begin  // Fill line in the TLB
-                end
-            default: begin
-                // Do nothing for now
-            end
+    // Final bit vectors combining matching EA and before/ after logic for forwarding and updates
+    logic [STORE_QUEUE_SIZE-1:0] final_stores_before_load;
+    logic [LOAD_QUEUE_SIZE-1:0]  final_loads_after_store;
+    logic [STORE_QUEUE_SIZE-1:0] final_stores_after_store;
     
-end
+    // Match bit vector
+    // When load or store resolves, we have to find all matching EA to do the following:
+    // Store:
+    // 1. Update any later loads that match the store (store broadcasts EA to later loads 
+    // that might have completed before store resolved -> rexecute this load and everything after it)
+    // 2. Update any later stores that match the store (store broadcasts EA to later stores
+    // that would update the same EA, useful for saving in-order commits to the $L1)
+    // Load:
+    // 1. Broadcast EA to earlier stores (forwarding data from LSQ vs memory or cache as 
+    // that would have stale data if not yet committed)
 
-// 2. Find all stores before load
-// 3. Find all loads after store
-// 4. Find all stores after store
+    // Init load and store queue and all additional features
+    queue #(.N(LOAD_QUEUE_SIZE)) load_queue (
+        .clk(clk),
+        .rst_n(rst_n),
+        .head(load_head),
+        .tail(load_tail),
+        .enqueue(enqueue_load),
+        .dequeue(dequeue_load),
+        .entry(entry),
+        .update(load_update),
+        .update_idx(load_update_idx),
+        .entries(load_entries),
+        .success(load_success),
+    );
 
-// Any stores are RESOLVED on the clock (synchronous)
-// Any loads are done NOT on the clock but updated based on stores (combinational?)
-// Any stores are updated combinationally based on stores that get RESOLVED (combinational?)
+    queue #(.N(STORE_QUEUE_SIZE)) store_queue (
+        .clk(clk),
+        .rst_n(rst_n),
+        .head(store_head),
+        .tail(store_tail),
+        .enqueue(enqueue_store),
+        .dequeue(dequeue_store),
+        .entry(entry),
+        .update(store_update),
+        .update_idx(store_update_idx),
+        .entries(store_entries),
+        .success(store_success),
+    );
 
-// Store to load forwarding scan
+    match #(.Q_SIZE(LOAD_QUEUE_SIZE), .EA_SIZE(48)) load_match (
+        .ea(trace_vaddr),
+        .entries(load_entries),
+        .matches(load_matches),
+    );
 
-// Scan earlier entries for stores
+    match #(.Q_SIZE(STORE_QUEUE_SIZE), .EA_SIZE(48)) store_match (
+        .ea(trace_vaddr),
+        .entries(store_entries),
+        .matches(store_matches),
+    );
 
+    // Generate the LSQ operations
+    // 1. Load instruction after exec stores (exec load, use information from prev stores)
+    before_and_after #(.Q_SIZE(STORE_QUEUE_SIZE), .EA_SIZE(EA_SIZE)) stores_before_load (
+        .head(store_head),
+        .tail(store_tail),
+        .j(load_entries[load_update_idx][SQ_TAIL_IDX+:3]), // Get the SQ tail index for the load being updated
+        .entries(store_entries),
+        .before_matches(stores_before_load_mask),
+        .after_matches(),  // Unused
+    );
 
+    // 2. Store instruction after exec loads (exec store, update later loads that might have gone ahead)
+    before_and_after #(.Q_SIZE(LOAD_QUEUE_SIZE), .EA_SIZE(EA_SIZE)) loads_after_store (
+        .head(load_head),
+        .tail(load_tail),
+        .j(store_entries[store_update_idx][LQ_TAIL_IDX+:3]), // Get the LQ tail index for the store being updated
+        .entries(load_entries),
+        .before_matches(), // Unused
+        .after_matches(loads_after_store_mask),
+    );
 
-// Additional logic for load-store forwarding and stores updating future loads
+    // 3. Store instruction after exec stores (exec store, update later stores that might depend on this store)
+    before_and_after #(.Q_SIZE(STORE_QUEUE_SIZE), .EA_SIZE(EA_SIZE)) stores_after_store (
+        .head(store_head),
+        .tail(store_tail),
+        .j(store_update_idx), // Compare against the current store being executed (index)
+        .entries(store_entries),
+        .before_matches(), // Unused
+        .after_matches(stores_after_store_mask),
+    );
+    
+    // Final bit vectors that combined the matching EA and before/ after logic
+    always_comb begin
+        final_stores_before_load = store_matches & stores_before_load_mask;
+        final_loads_after_store  = load_matches  & loads_after_store_mask;
+        final_stores_after_store = store_matches & stores_after_store_mask;
+    end
 
+    // Find indices for resolving instructions out of order (in either queue)
+    always_comb begin
+        update_lq_idx = '0; 
+        update_sq_idx = '0;
+
+        for (int i = 0; i < LOAD_QUEUE_SIZE; i++) 
+            // If instruction is valid (active) and trace id is aligned with current instruction executing, then we have index for current execution
+            if (load_entries[i][VALID_IDX] && load_entries[i][TRACE_ID_IDX] == trace_id) 
+                update_lq_idx = i;
+        for (int i = 0; i < STORE_QUEUE_SIZE; i++) 
+            if (store_entries[i][VALID_IDX] && store_entries[i][TRACE_ID_IDX] == trace_id) 
+                update_sq_idx = i;
+    end
+
+    // Synchronous
+    always_ff @(posedge clk or negedge rst_n) begin : lsq_controller
+        if (!rst_n) begin
+            trace_op <= OP_MEM_LOAD; // Default to load, but doesn't matter as we won't enqueue on reset
+            trace_vaddr <= 0;
+            trace_vaddr_is_valid <= 0;
+            trace_value_is_valid <= 0;
+            trace_value <= 0;
+
+            tlb_req <= 0;
+            trace_tlb_paddr <= 0;
+
+            trace_id_prev <= 0;
+
+            enqueue_load <= 0;
+            enqueue_store <= 0;
+            load_update <= 0;
+            store_update <= 0;
+            entry <= 0;
+
+        end else begin
+            // Clear enqueue signals if not a new operation (Defaults)
+            enqueue_load <= 0;
+            enqueue_store <= 0;
+            load_update <= 0;
+            store_update <= 0;
+
+            // Check for new operations
+            if (trace_id != trace_id_prev) begin
+                trace_op <= trace_line[54:52];
+                trace_vaddr <= trace_line[47:0];
+                trace_vaddr_is_valid <= trace_line[55];
+                trace_value_is_valid <= trace_line[120];
+                trace_value <= trace_line[119:56];
+
+                trace_tlb_paddr <= trace_line[85:56];
+                tlb_paddr <= trace_tlb_paddr;
+                tlb_req <= (trace_op == OP_TLB_FILL); // Only assert TLB request for TLB fill operations
+
+                // Update the previous trace tracker
+                trace_id_prev <= trace_id;
+
+                // Need to hear request and queue on next cycle
+                case (trace_op)
+                    OP_MEM_LOAD: begin
+                        enqueue_load <= 1;
+                        entry <= {
+                            1'b1,                   // Valid bit
+                            trace_vaddr_is_valid,   // Resolved bit
+                            trace_vaddr,            // EA
+                            1'b0,                   // Value valid bit (waiting for value to read)
+                            64'b0,                  // Data (for loads to receive)
+                            trace_id,               // Trace ID for matching with trace lines
+                            store_tail,             // SQ Tail
+                            3'b0,                   // LQ Tail (don't need to track for loads)
+                        };
+                    end
+
+                    OP_MEM_STORE: begin
+                        enqueue_store <= 1;
+                        entry <= {
+                            1'b1,                   // Valid bit
+                            trace_vaddr_is_valid,   // Resolved bit
+                            trace_vaddr,            // EA
+                            trace_value_is_valid,   // Value valid bit (for stores)
+                            trace_value,            // Data (for stores)
+                            trace_id,               // Trace ID for matching with trace lines
+                            3'b0,                   // SQ Tail (don't need to track for stores)
+                            load_tail,              // LQ Tail 
+                        };
+                    end
+
+                    OP_MEM_RESOLVE: begin   // Resolve unresolved address
+                        // Determine which queue holds this trace's ID and update it
+                        if (load_entries[update_lq_idx][TRACE_ID_IDX:SQ_TAIL_IDX+1] == trace_id 
+                                && load_entries[update_lq_idx][VALID_IDX]) begin
+                            load_update <= 1;
+                            lq_update_data <= load_entries[update_lq_idx];
+                            lq_update_data[RESOLVED_IDX] <= 1'b1;
+                            lq_update_data[EA_IDX:EA_IDX-EA_SIZE] <= trace_line[47:0];
+                            // Check final_stores_before_load here!
+
+                        end else begin
+                            store_update <= 1;
+                            sq_update_data <= store_entries[update_sq_idx];
+                            sq_update_data[RESOLVED_IDX] <= 1'b1;
+                            sq_update_data[EA_IDX:EA_IDX-EA_SIZE] <= trace_line[47:0];
+                            // Check final_loads_after_store here!
+                        end
+                    end
+                    default: begin
+                        // Do nothing for now?
+                    end
+            end
+        end
+    end
 
 endmodule : lsq
