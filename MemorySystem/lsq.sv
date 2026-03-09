@@ -4,6 +4,7 @@
 /* verilator lint_off PINCONNECTEMPTY */
 /* verilator lint_off WIDTHEXPAND */
 /* verilator lint_off DECLFILENAME */
+
 `timescale 1ns/1ps
 
 // ----------------------------------------------------------------------------------------------------
@@ -15,7 +16,7 @@
 // Format of entry:
 // Valid            | 1b          | Active instruction vs. inactive instruction
 // Resolved         | 1b          | Address has been calculated by the processor
-// Addr             | 48b         | Address
+// Addr             | 48b         | Virtual address
 // Value Valid      | 1b          | Data is valid (for stores)
 // Data             | 64b         | Data
 // Trace ID         | 4b          | Trace ID for matching with trace lines
@@ -48,54 +49,99 @@ module lsq # (
     // Signals predefined from the traces that get fed into the LSQ
     input logic [120:0] trace_line, // Break this trace line into different components
 
-    // Signls to the TLB
+    // Signals from the TLB
+    input logic tlb_hit,
+    input logic [29:0] tlb_paddr,
+
+    // Signals from $L1
+    input logic cache_ready,
+    input logic cache_ret_valid,
+    input logic [63:0] cache_ret_data, // Read
+
+    // Signals to the TLB
     output logic tlb_req,
-    output logic [29:0] tlb_paddr
-    // Signals to the L1 cache
-    // TODO
-);
+    output logic [47:0] tlb_vaddr,  // Registered vaddr stable for the full cycle tlb_req is high
+    // Forward fill
+    output logic tlb_fill,
+    output logic [29:0] fill_tlb_paddr, // Forward the physical addr
+    output logic [47:0] fill_tlb_vaddr,  // Forward the virtual addr
+
+    // Signals to $L1
+    output logic cache_req,
+    output logic cache_we,
+    output logic [29:0] cache_paddr,
+    output logic [63:0] cache_wdata
+);     
     op_e trace_op;
     logic [3:0] trace_id;
-    assign trace_id = trace_line[51:48];
     logic [47:0] trace_vaddr;
     logic trace_vaddr_is_valid;     // Only relevant to mem operations
     logic trace_value_is_valid;     // Only relevant to store operations
     logic [63:0] trace_value;       // Only relevant to store operations
-    logic [29:0] trace_tlb_paddr;   // Only relevant to TLB fill operations
 
+    assign trace_op = op_e'(trace_line[54:52]);
+    assign trace_id = trace_line[51:48];
+    assign trace_vaddr = trace_line[47:0];
+    assign tlb_vaddr = trace_line[47:0];            // Latch vaddr so it stays stable while tlb_req is high (same cycle as the queues)
+    assign trace_vaddr_is_valid = trace_line[55];
+    assign trace_value_is_valid = trace_line[120];
+    assign trace_value = trace_line[119:56];
+
+    // TLB forward fill from processor -> bypass LSQ -> TLB
+    assign tlb_fill = (trace_line[54:52] == 3'(OP_TLB_FILL));
+    assign fill_tlb_paddr = trace_line[85:56];
+    assign fill_tlb_vaddr = trace_line[47:0];
+    
     localparam int LOAD_QUEUE_SIZE = N>>1;  // 16 entries -> 8 loads and 8 stores
     localparam int STORE_QUEUE_SIZE = N>>1;
     localparam int ENTRY_SIZE = 125;
     localparam int EA_SIZE = 48;
+    localparam int PA_SIZE = 30;
     localparam int DATA_SIZE = 64;
-
-    localparam int VALID_IDX = ENTRY_SIZE - 1;
-    localparam int RESOLVED_IDX = VALID_IDX - 1;
-    localparam int EA_IDX = RESOLVED_IDX - 1;
-    localparam int VVALID_IDX = EA_IDX - EA_SIZE;
-    localparam int DATA_IDX = VVALID_IDX - 1;
-    localparam int TRACE_ID_IDX = DATA_IDX - DATA_SIZE;
-    localparam int SQ_TAIL_IDX = TRACE_ID_IDX - 4;
-    localparam int LQ_TAIL_IDX = SQ_TAIL_IDX - 3;
 
     // Format of entry:
     // Valid            | 1b          | Active instruction vs. inactive instruction
     // Resolved         | 1b          | Address has been calculated by the processor
-    // Value Valid      | 1b          | Data is valid (for stores)
     // Addr             | 48b         | Address
+    // Value Valid      | 1b          | Data is valid (for stores)
     // Data             | 64b         | Data
     // Trace ID         | 4b          | Trace ID for matching with trace lines
     // SQ Tail          | 3b          | Only for store queue, indicates the position in the store queue for forwarding
     // LQ Tail          | 3b          | Only for load queue, indicates the position in the load queue for forwarding
 
+    localparam int VALID_IDX = ENTRY_SIZE - 1;
+    localparam int RESOLVED_IDX = VALID_IDX - 1;
+    localparam int EA_IDX = RESOLVED_IDX - 1;
+    localparam int VVALID_IDX = EA_IDX - EA_SIZE;
+    // Format of entry:
+    // Valid            | 1b          | Active instruction vs. inactive instruction
+    // Resolved         | 1b          | Address has been calculated by the processor
+    // Addr             | 48b         | Address
+    // Value Valid      | 1b          | Data is valid (for stores)
+    // Data             | 64b         | Data
+    // Trace ID         | 4b          | Trace ID for matching with trace lines
+    // SQ Tail          | 3b          | Only for store queue, indicates the position in the store queue for forwarding
+    // LQ Tail          | 3b          | Only for load queue, indicates the position in the load queue for forwarding
+
+    localparam int DATA_IDX = VVALID_IDX - 1;
+    localparam int TRACE_ID_IDX = DATA_IDX - DATA_SIZE;
+    localparam int SQ_TAIL_IDX = TRACE_ID_IDX - 4;
+    localparam int LQ_TAIL_IDX = SQ_TAIL_IDX - 3;
+
+    logic tlb_pending;                                      // TLB response is expected next cycle
+    logic tlb_pending_is_load;                              // 1 = LOAD queue, 0 = STORE queue
+    logic [$clog2(LOAD_QUEUE_SIZE)-1:0] tlb_pending_idx;    // queue slot of the entry awaiting translation
+
+    logic cache_pending;
+    logic [$clog2(LOAD_QUEUE_SIZE)-1:0] cache_pending_idx;  // LQ entry that is waiting for cache data
+
     logic [3:0] trace_id_prev;
 
-    // Load and store queues
+    // Load and store queue stuff
     logic [LOAD_QUEUE_SIZE-1:0][ENTRY_SIZE-1:0] load_entries;
     logic [STORE_QUEUE_SIZE-1:0][ENTRY_SIZE-1:0] store_entries;
     logic [LOAD_QUEUE_SIZE-1:0] load_matches;
     logic [STORE_QUEUE_SIZE-1:0] store_matches;
-    logic [ENTRY_SIZE-1:0] entry;
 
     logic enqueue_load, enqueue_store;
     logic dequeue_load, dequeue_store;
@@ -104,8 +150,14 @@ module lsq # (
     logic load_success, store_success;
 
     logic load_update, store_update;
-    logic [$clog2(LOAD_QUEUE_SIZE)-1:0] load_update_idx;
-    logic [$clog2(STORE_QUEUE_SIZE)-1:0] store_update_idx;
+    // 2 Cycle latency cache means HOLD onto the actually-being-registered load and stores
+    logic [$clog2(LOAD_QUEUE_SIZE)-1:0] load_update_idx;        // Combinational result
+    logic [$clog2(STORE_QUEUE_SIZE)-1:0] store_update_idx;      // Combination result
+    logic [$clog2(LOAD_QUEUE_SIZE)-1:0] load_update_idx_stable; // For synchronous blocks
+    logic [$clog2(STORE_QUEUE_SIZE)-1:0] store_update_idx_stable;   // For synchronous blocks
+    // Buses for manually injecting updates into the queue (idk if this makes sense or not)
+    logic [ENTRY_SIZE-1:0] load_entry_bus;
+    logic [ENTRY_SIZE-1:0] store_entry_bus;
 
     logic [STORE_QUEUE_SIZE-1:0] stores_before_load_mask, stores_after_store_mask;
     logic [LOAD_QUEUE_SIZE-1:0]  loads_after_store_mask;
@@ -127,41 +179,43 @@ module lsq # (
     // that would have stale data if not yet committed)
 
     // Init load and store queue and all additional features
-    _queue #(.N(LOAD_QUEUE_SIZE)) load_queue (
+    // Note: The queues synchronously clock in the entries
+    // Note: Create an additional bus to handle manually update entries (probably security violation, oh well)
+    _queue #(.N(LOAD_QUEUE_SIZE), .ENTRY_SIZE(ENTRY_SIZE)) load_queue (
         .clk(clk),
         .rst_n(rst_n),
         .head(load_head),
         .tail(load_tail),
         .enqueue(enqueue_load),
         .dequeue(dequeue_load),
-        .entry(entry),
+        .entry(load_entry_bus),
         .update(load_update),
-        .update_idx(load_update_idx),
+        .update_idx(load_update_idx_stable),
         .entries(load_entries),
         .success(load_success)
     );
 
-    _queue #(.N(STORE_QUEUE_SIZE)) store_queue (
+    _queue #(.N(STORE_QUEUE_SIZE), .ENTRY_SIZE(ENTRY_SIZE)) store_queue (
         .clk(clk),
         .rst_n(rst_n),
         .head(store_head),
         .tail(store_tail),
         .enqueue(enqueue_store),
         .dequeue(dequeue_store),
-        .entry(entry),
+        .entry(store_entry_bus),
         .update(store_update),
-        .update_idx(store_update_idx),
+        .update_idx(store_update_idx_stable),
         .entries(store_entries),
         .success(store_success)
     );
 
-    _match #(.Q_SIZE(LOAD_QUEUE_SIZE), .EA_SIZE(EA_SIZE)) load_match (
+    _match #(.Q_SIZE(LOAD_QUEUE_SIZE), .ENTRY_SIZE(ENTRY_SIZE), .EA_SIZE(EA_SIZE)) load_match (
         .ea(trace_vaddr),
         .entries(load_entries),
         .matching_eas(load_matches)
     );
 
-    _match #(.Q_SIZE(STORE_QUEUE_SIZE), .EA_SIZE(EA_SIZE)) store_match (
+    _match #(.Q_SIZE(STORE_QUEUE_SIZE), .ENTRY_SIZE(ENTRY_SIZE), .EA_SIZE(EA_SIZE)) store_match (
         .ea(trace_vaddr),
         .entries(store_entries),
         .matching_eas(store_matches)
@@ -169,7 +223,7 @@ module lsq # (
 
     // Generate the LSQ operations
     // 1. Load instruction after exec stores (exec load, use information from prev stores)
-    _before_and_after #(.Q_SIZE(STORE_QUEUE_SIZE), .EA_SIZE(EA_SIZE)) stores_before_load (
+    _before_and_after #(.Q_SIZE(STORE_QUEUE_SIZE), .ENTRY_SIZE(ENTRY_SIZE), .EA_SIZE(EA_SIZE)) stores_before_load (
         .head(store_head),
         .tail(store_tail),
         .j(load_entries[load_update_idx][SQ_TAIL_IDX+:3]), // Get the SQ tail index for the load being updated
@@ -179,7 +233,7 @@ module lsq # (
     );
 
     // 2. Store instruction after exec loads (exec store, update later loads that might have gone ahead)
-    _before_and_after #(.Q_SIZE(LOAD_QUEUE_SIZE), .EA_SIZE(EA_SIZE)) loads_after_store (
+    _before_and_after #(.Q_SIZE(LOAD_QUEUE_SIZE), .ENTRY_SIZE(ENTRY_SIZE), .EA_SIZE(EA_SIZE)) loads_after_store (
         .head(load_head),
         .tail(load_tail),
         .j(store_entries[store_update_idx][LQ_TAIL_IDX+:3]), // Get the LQ tail index for the store being updated
@@ -189,7 +243,7 @@ module lsq # (
     );
 
     // 3. Store instruction after exec stores (exec store, update later stores that might depend on this store)
-    _before_and_after #(.Q_SIZE(STORE_QUEUE_SIZE), .EA_SIZE(EA_SIZE)) stores_after_store (
+    _before_and_after #(.Q_SIZE(STORE_QUEUE_SIZE), .ENTRY_SIZE(ENTRY_SIZE), .EA_SIZE(EA_SIZE)) stores_after_store (
         .head(store_head),
         .tail(store_tail),
         .j(store_update_idx), // Compare against the current store being executed (index)
@@ -201,7 +255,7 @@ module lsq # (
     // Final bit vectors that combined the matching EA and before/ after logic
     always_comb begin
         final_stores_before_load = store_matches & stores_before_load_mask;
-        final_loads_after_store  = load_matches  & loads_after_store_mask;
+        final_loads_after_store = load_matches  & loads_after_store_mask;
         final_stores_after_store = store_matches & stores_after_store_mask;
     end
 
@@ -213,33 +267,125 @@ module lsq # (
         for (int i = 0; i < LOAD_QUEUE_SIZE; i++) 
             // If instruction is valid (active) and trace id is aligned with current instruction executing, then we have index for current execution
             if (load_entries[i][VALID_IDX] && load_entries[i][TRACE_ID_IDX-:4] == trace_id) 
-                load_update_idx = $clog2(LOAD_QUEUE_SIZE)'(i);
+                load_update_idx = $clog2(LOAD_QUEUE_SIZE)'(i); // Convert idx to the correct dimension
         for (int i = 0; i < STORE_QUEUE_SIZE; i++) 
             if (store_entries[i][VALID_IDX] && store_entries[i][TRACE_ID_IDX-:4] == trace_id) 
                 store_update_idx = $clog2(STORE_QUEUE_SIZE)'(i);
     end
 
+    // Combinational entry bus
+    // load_entry_bus / store_entry_bus are the data inputs to _queue
+    // _queue uses non-blocking <= to enqueue entries -> it will take entries from the busses at the posedge
+    always_comb begin
+        // Load entry bus
+        load_entry_bus = '0;
+
+        if (cache_pending && cache_ret_valid) begin
+            // Cache returned load data
+            load_entry_bus = load_entries[cache_pending_idx];
+            load_entry_bus[VVALID_IDX] = 1;
+            load_entry_bus[DATA_IDX-:DATA_SIZE] = cache_ret_data;
+
+        end else if (tlb_pending && tlb_hit && tlb_pending_is_load) begin
+            // TLB hit for a load
+            // Set resolved bit
+            load_entry_bus = load_entries[tlb_pending_idx] | (ENTRY_SIZE'(1) << RESOLVED_IDX);
+
+        end else if (trace_id != trace_id_prev) begin
+            // New trace
+            case (trace_op)
+                OP_MEM_LOAD: begin
+                    load_entry_bus = {
+                        1'b1,                  // Valid
+                        1'b0,                  // Resolved (already known since trace_vaddr_is_valid is passed...? That doesn't seem right)
+                        trace_vaddr,           // EA virtual
+                        1'b0,                  // Value valid (filled by cache)
+                        64'b0,                 // Data (filled by cache)
+                        trace_id,              // Trace ID
+                        store_tail,            // SQ tail snapshot for forwarding
+                        3'b0                   // LQ tail unused for loads
+                    };
+                end
+                OP_MEM_RESOLVE: begin
+                    // Find the trace with the same id and update (if missing EA)
+                    // Check if the entry is valid instruction (not retired/ committed)
+                    if (load_entries[load_update_idx][TRACE_ID_IDX-:4] == trace_id && load_entries[load_update_idx][VALID_IDX]) begin
+                        load_entry_bus = (
+                                load_entries[load_update_idx]           // Get the already stored entry
+                                | (ENTRY_SIZE'(1) << RESOLVED_IDX))     // Set resolved (assumes processor comes back with the right EA)
+                                & ~(((ENTRY_SIZE'(1) << EA_SIZE) - 1)   // Mask (all EA bits are flipped to 1, then zeroed (NOT operation), then shifted into place)
+                                << (EA_IDX - EA_SIZE + 1));             // Clear old EA
+                        load_entry_bus[EA_IDX-:EA_SIZE] = trace_vaddr;  // Write new EA
+                    end
+                end
+                default: begin
+                end
+            endcase
+        end
+
+        // Store entry bus
+        store_entry_bus = '0;
+
+        if (tlb_pending && tlb_hit && !tlb_pending_is_load) begin
+            // TLB hit for a store 
+            // Set resolved bit
+            store_entry_bus = store_entries[tlb_pending_idx] | (ENTRY_SIZE'(1) << RESOLVED_IDX);
+
+        end else if (trace_id != trace_id_prev) begin
+            case (trace_op)
+                OP_MEM_STORE: begin
+                    store_entry_bus = {
+                        1'b1,                  // Valid
+                        1'b0,                  // Resolved
+                        trace_vaddr,           // EA virtual
+                        trace_value_is_valid,  // Value valid
+                        trace_value,           // Store data
+                        trace_id,              // Trace ID
+                        3'b0,                  // SQ tail unused for stores
+                        load_tail              // LQ tail snapshot for forwarding
+                    };
+                end
+                OP_MEM_RESOLVE: begin
+                    // Do the same as the load bus
+                    if (store_entries[store_update_idx][TRACE_ID_IDX-:4] == trace_id && store_entries[store_update_idx][VALID_IDX]) begin
+                        store_entry_bus = (
+                            store_entries[store_update_idx]
+                            | (ENTRY_SIZE'(1) << RESOLVED_IDX))
+                            & ~(((ENTRY_SIZE'(1) << EA_SIZE) - 1)
+                            << (EA_IDX - EA_SIZE + 1));
+                        store_entry_bus[EA_IDX-:EA_SIZE] = trace_vaddr;
+                    end
+                end
+                default: ;
+            endcase
+        end
+    end
+
     // Synchronous
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            trace_op <= OP_MEM_LOAD; // Default to load, but doesn't matter as we won't enqueue on reset
-            trace_vaddr <= 0;
-            trace_vaddr_is_valid <= 0;
-            trace_value_is_valid <= 0;
-            trace_value <= 0;
+            cache_req <= 0;
+            cache_we <= 0;
+            cache_paddr <= '0;
+            cache_wdata <= '0;
+            cache_pending <= 0;
+            cache_pending_idx <= '0;
 
             tlb_req <= 0;
-            trace_tlb_paddr <= 0;
+            tlb_pending <= 0;   
+            tlb_pending_is_load <= 0;
+            tlb_pending_idx <= '0;
 
-            trace_id_prev <= 0;
+            load_update_idx_stable <= '0;
+            store_update_idx_stable <= '0;
 
+            trace_id_prev <= '0;
             enqueue_load <= 0;
             enqueue_store <= 0;
-            dequeue_load <= 0; // Lol unused
-            dequeue_store <= 0; // Lol unused
+            dequeue_load <= 0; // Not really used...
+            dequeue_store <= 0; // Not really used...
             load_update <= 0;
             store_update <= 0;
-            entry <= 0;
 
         end else begin
             // Clear enqueue signals if not a new operation (Defaults)
@@ -248,75 +394,108 @@ module lsq # (
             load_update <= 0;
             store_update <= 0;
 
-            // Check for new operations
+            cache_req <= 0;
+            cache_pending <= 0;
+
+            tlb_req <= 0;
+            tlb_pending <= 0;
+
+            // Cache handler
+            // $L1 has 2 cycle latency
+            // Cache pending is only ever triggered by load requests (so we know it's a load and we just have to wait for valid data)
+            if (cache_pending && cache_ret_valid) begin
+                load_update <= 1;
+                load_update_idx_stable <= cache_pending_idx;
+            end
+    
+            // TLB handler
+            // Has 1 cycle latency
+            // Cycle N: tlb_pending is waiting upon $L1 response and tlb_req is triggered
+            // Cycle N+1: the TLB registered outputs are valid
+            // On a hit: update the entry with the physical address
+            // On a miss: leave the entry unresolved; the processor must send OP_MEM_RESOLVE after the page-walk is done ?
+            if (tlb_pending) begin
+                if (tlb_hit) begin
+                    // Set resolved in the correct queue entry
+                    if (tlb_pending_is_load) begin
+                        load_update <= 1;
+                        load_update_idx_stable <= tlb_pending_idx;
+                    end else begin
+                        store_update <= 1;
+                        store_update_idx_stable <= tlb_pending_idx;
+                    end
+
+                    // Forward the translation results (PA) to the cache
+                    if (cache_ready) begin
+                        cache_req <= 1;
+                        cache_paddr <= tlb_paddr;
+                        cache_we <= ~tlb_pending_is_load;   // 0=load, 1=store
+
+                        if (tlb_pending_is_load) begin
+                            cache_wdata <= '0;
+                            cache_pending <= 1;
+                            cache_pending_idx <= tlb_pending_idx;
+                        end else begin
+                            // Store (send right away)
+                            cache_wdata <= store_entries[tlb_pending_idx][DATA_IDX-:DATA_SIZE];
+                            cache_pending <= 0;
+                        end
+                    end
+                    // TODO: What if cache is not ready?
+                end
+                // TODO: TLB miss (idk)
+            end
+
+            // Check for new operations (register memory loads and stores)
             if (trace_id != trace_id_prev) begin
-                trace_op <= op_e'(trace_line[54:52]);
-                trace_vaddr <= trace_line[47:0];
-                trace_vaddr_is_valid <= trace_line[55];
-                trace_value_is_valid <= trace_line[120];
-                trace_value <= trace_line[119:56];
-
-                trace_tlb_paddr <= trace_line[85:56];
-                tlb_paddr <= trace_line[85:56];
-                tlb_req <= (trace_line[54:52] == 3'(OP_TLB_FILL));
-
                 // Update the previous trace tracker
                 trace_id_prev <= trace_id;
 
-                // Need to hear request and queue on next cycle
+                // Need to hear request and queue on first cycle
                 case (trace_op)
                     OP_MEM_LOAD: begin
                         enqueue_load <= 1;
-                        entry <= {
-                            1'b1,                   // Valid bit
-                            trace_vaddr_is_valid,   // Resolved bit
-                            trace_vaddr,            // EA
-                            1'b0,                   // Value valid bit (waiting for value to read)
-                            64'b0,                  // Data (for loads to receive)
-                            trace_id,               // Trace ID for matching with trace lines
-                            store_tail,             // SQ Tail
-                            3'b0                    // LQ Tail (don't need to track for loads)
-                        };
+
+                        // TLB request
+                        tlb_req <= 1;
+                        tlb_pending <= 1;
+                        tlb_pending_is_load <= 1;
+                        tlb_pending_idx <= load_tail;   // Get the tail (recently added load)
                     end
 
                     OP_MEM_STORE: begin
                         enqueue_store <= 1;
-                        entry <= {
-                            1'b1,                   // Valid bit
-                            trace_vaddr_is_valid,   // Resolved bit
-                            trace_vaddr,            // EA
-                            trace_value_is_valid,   // Value valid bit (for stores)
-                            trace_value,            // Data (for stores)
-                            trace_id,               // Trace ID for matching with trace lines
-                            3'b0,                   // SQ Tail (don't need to track for stores)
-                            load_tail               // LQ Tail 
-                        };
+
+                        // TLB request if there is no store forwarding (check stores before load)
+                        if (!|final_stores_before_load) begin
+                            tlb_req             <= 1;
+                            tlb_pending         <= 1;
+                            tlb_pending_is_load <= 1;
+                            tlb_pending_idx     <= load_update_idx;
+                        end
                     end
 
                     OP_MEM_RESOLVE: begin   // Resolve unresolved address
                         // Determine which queue holds this trace's ID and update it
-                        if (load_entries[load_update_idx][TRACE_ID_IDX-:4] == trace_id 
-                                && load_entries[load_update_idx][VALID_IDX]) begin
-
+                        if (load_entries[load_update_idx][TRACE_ID_IDX-:4] == trace_id && load_entries[load_update_idx][VALID_IDX]) begin
                             load_update <= 1;
-                            entry <= (load_entries[load_update_idx]
-                                      | (ENTRY_SIZE'(1) << RESOLVED_IDX))  // Set resolved bit
-                                      & ~(((ENTRY_SIZE'(1) << EA_SIZE) - 1) << (EA_IDX - EA_SIZE + 1));  // Clear old EA
-                            entry[EA_IDX-:EA_SIZE] <= trace_vaddr;
-                            // TODO: Check final_stores_before_load
+                            load_update_idx_stable <= load_update_idx;
+                            tlb_req <= 1;
+                            tlb_pending <= 1;
+                            tlb_pending_is_load <= 1;
+                            tlb_pending_idx <= load_update_idx;
 
-                        end else begin
+                        end else if (store_entries[store_update_idx][TRACE_ID_IDX-:4] == trace_id && store_entries[store_update_idx][VALID_IDX])begin
                             store_update <= 1;
-                            entry <= (store_entries[store_update_idx]
-                                      | (ENTRY_SIZE'(1) << RESOLVED_IDX))  // Set resolved bit
-                                      & ~(((ENTRY_SIZE'(1) << EA_SIZE) - 1) << (EA_IDX - EA_SIZE + 1));  // Clear old EA
-                            entry[EA_IDX-:EA_SIZE] <= trace_vaddr;
-                            // TODO: Check final_loads_after_store
+                            store_update_idx_stable <= store_update_idx;
+                            tlb_req <= 1;
+                            tlb_pending <= 1;
+                            tlb_pending_is_load <= 0;
+                            tlb_pending_idx <= store_update_idx;
                         end
                     end
 
                     default: begin
-                        // Do nothing for now?
                     end
                 endcase
             end

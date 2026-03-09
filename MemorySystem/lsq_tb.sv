@@ -6,34 +6,48 @@
 
 module lsq_tb;
 
-    logic        clk, rst_n;
+    logic clk, rst_n;
     logic [120:0] trace_line;
 
-    logic        lsq_tlb_req;
-    logic [29:0] lsq_tlb_paddr;
-    logic        tb_lookup_req;
-    logic [47:0] tb_lookup_vaddr;
-    logic        tlb_lookup_hit;
+    // Requests from LSQ to the TLB
+    logic lsq_tlb_req;
+    logic [47:0] lsq_tlb_vaddr;
+
+    // Known addr translations
+    // Don't touch these in the TB, they will get forwarded from the LSQ to the TLB
+    logic lsq_tlb_fill;
+    logic [47:0] lsq_tlb_vaddr_fill;
+    logic [29:0] lsq_tlb_paddr_fill;
+
+    // TLB outputs
+    logic tlb_lookup_hit;
     logic [29:0] tlb_lookup_paddr;
 
     lsq #(.N(16)) dut_lsq (
-        .clk        (clk),
-        .rst_n      (rst_n),
+        .clk (clk),
+        .rst_n (rst_n),
         .trace_line (trace_line),
-        .tlb_req    (lsq_tlb_req),
-        .tlb_paddr  (lsq_tlb_paddr)
+        .tlb_req (lsq_tlb_req),         // Lookup
+        .tlb_vaddr (lsq_tlb_vaddr),     // Lookup
+        .tlb_hit(tlb_lookup_hit),
+        .tlb_paddr(tlb_lookup_paddr),
+        .tlb_fill(lsq_tlb_fill),                // FF 
+        .fill_tlb_paddr(lsq_tlb_paddr_fill),    // FF
+        .fill_tlb_vaddr(lsq_tlb_vaddr_fill)     // FF
     );
 
     dtlb dut_tlb (
-        .clk            (clk),
-        .rst_n          (rst_n),
-        .lookup_req_i   (tb_lookup_req),
-        .lookup_vaddr_i (tb_lookup_vaddr),
-        .lookup_hit_o   (tlb_lookup_hit),
+        .clk (clk),
+        .rst_n (rst_n),
+        // Lookup (from LSQ)
+        .lookup_req_i (lsq_tlb_req),        // LSQ asks for translation 
+        .lookup_vaddr_i (lsq_tlb_vaddr),    // VADDR from LSQ 
+        .lookup_hit_o (tlb_lookup_hit),
         .lookup_paddr_o (tlb_lookup_paddr),
-        .fill_req_i     (lsq_tlb_req),
-        .fill_vaddr_i   (trace_line[47:0]),
-        .fill_paddr_i   (lsq_tlb_paddr)
+        // Fill (forwarded from LSQ or from TB)
+        .fill_req_i (lsq_tlb_fill),
+        .fill_vaddr_i (lsq_tlb_vaddr_fill),
+        .fill_paddr_i (lsq_tlb_paddr_fill)
     );
 
     initial clk = 1'b0;
@@ -85,13 +99,16 @@ module lsq_tb;
         input logic [29:0] paddr // TLB stuff
     );
         logic [120:0] t = '0;
-        t[47:0] = vaddr;
-        t[51:48] = tid;
-        t[54:52] = op_val;
-        t[55] = va_valid;
-        t[85:56] = paddr;
+        t[47:0]   = vaddr;
+        t[51:48]  = tid;
+        t[54:52]  = op_val;
+        t[55]     = va_valid;
+        // val [119:56] and paddr [85:56] overlap — they are mutually exclusive
+        // by design (TLB_FILL uses paddr, STORE uses val, never both).
+        // Write val first so that paddr overwrites the overlapping bits last.
         t[119:56] = val;
-        t[120] = vv;
+        t[85:56]  = paddr;
+        t[120]    = vv;
 
         return t;
     endfunction
@@ -138,10 +155,10 @@ module lsq_tb;
         output logic [29:0] paddr
     );
         @(negedge clk);
-        tb_lookup_req = 1'b1; // Prep request
-        tb_lookup_vaddr = va; // Prep addr
+        lsq_tlb_req = 1'b1; // Prep request
+        lsq_tlb_vaddr = va; // Prep addr
         @(posedge clk); #1; // Sample after rising edge where output is registered
-        tb_lookup_req = 1'b0; // Clear request
+        lsq_tlb_req = 1'b0; // Clear request
         hit = tlb_lookup_hit; // Check for TLB hits
         paddr = tlb_lookup_paddr; // Grab the physical addr
     endtask
@@ -240,17 +257,43 @@ module lsq_tb;
     initial begin
         pass_count = 0; 
         fail_count = 0;
-        tb_lookup_req = 1'b0; 
-        tb_lookup_vaddr = '0;
         do_reset();
 
-        $display("\n========================================================");
         $display("================= LSQ + dTLB Testbench =================");
-        $display("========================================================\n");
 
-        // ------------------------------------------------------------------
-        // Test 1:
-        // ------------------------------------------------------------------
+        // -------------------------------------------------------------------------
+        // TC1: TLB Fill + Lookup
+        //
+        // Force LSQ to raise TLB_req and output the physical addr on tlb_paddr
+        // dTLB needs to VPN -> PPN to get the PA
+        // Mapping: vaddr page 0xDEADB xxx  ->  ppn 0x12345
+        //   lookup  0xDEADB_0A0  should return  0x12345_0A0
+        // -------------------------------------------------------------------------
+        $display("\nTC1: TLB fill + lookup");
+
+        tl = make_trace(3'd4, 4'h1, 48'hDEAD_B000, 1'b0, '0, 1'b0, {18'h12345, 12'h0});
+        
+        // Start driving
+        @(negedge clk); trace_line = tl;
+        
+        // The LSQ processes on the next posedge
+        // We wait for that posedge + a tiny margin to sample the OUTPUT of the LSQ.
+        @(posedge clk);
+        #1; 
+
+        // Check while the trace is still active and the LSQ is asserting the fill
+        check_bool("TC1a_lsq_raises_tlb_fill", lsq_tlb_fill, 1'b1);
+        check_val ("TC1b_lsq_outputs_correct_paddr", {34'b0, lsq_tlb_paddr_fill}, {34'b0, 30'({18'h12345, 12'h0})});
+
+        // Now it is safe to go to idle
+        trace_line = '0;
+        repeat(2) @(posedge clk);
+
+        // Test the lookup
+        do_tlb_lookup(48'hDEAD_B0A0, h, p);
+        $display("  Lookup vaddr=0xDEADB0A0: hit=%b, paddr=0x%h", h, p);
+        check_bool("TC1c_tlb_lookup_hits", h, 1'b1);
+        check_val ("TC1d_tlb_paddr_has_right_ppn", {34'b0, p}, {34'b0, 30'({18'h12345, 12'h0A0})});
         
         // ------------------------------------------------------------------
         // Summary
