@@ -7,7 +7,7 @@
 
 `timescale 1ns/1ps
 
-// ============================================================================
+// -----------------------------------------------------------------------
 //  LSQ Isolation Testbench
 //
 //  The TLB and cache are both implemented as reactive always blocks below that
@@ -24,7 +24,7 @@
 //               matches the "$L1 has 2 cycle latency" comment in lsq.sv.
 //               Writes (cache_we=1) commit on the same cycle, no ret_valid.
 //               Data can be pre-loaded by calling stub_cache_write(pa, data).
-// ============================================================================
+// -----------------------------------------------------------------------
 
 module lsq_tb;
 
@@ -380,7 +380,6 @@ module lsq_tb;
     //  Main test sequence
     // -----------------------------------------------------------------------
     logic [120:0] tl;
-
     initial begin
         pass_count = 0;
         fail_count = 0;
@@ -396,6 +395,13 @@ module lsq_tb;
         stub_tlb_fill(48'h0000_0000_2000, {18'h00020, 12'h0}); // 0x2000 -> ppn 0x20
         stub_tlb_fill(48'h0000_0000_3000, {18'h00030, 12'h0}); // 0x3000 -> ppn 0x30
         stub_tlb_fill(48'h0000_0000_4000, {18'h00040, 12'h0}); // 0x4000 -> ppn 0x40
+
+        // ------------------------------------------------------------------
+        // Ensure everything is properly reset
+        // ------------------------------------------------------------------
+        $display("\nInit: Dumps");
+        dumps();
+        $display("----------------------------------------------------------------");
 
         // ----------------------------------------------------------------
         // TC2: Basic Store -> Cache -> Load (no forwarding)
