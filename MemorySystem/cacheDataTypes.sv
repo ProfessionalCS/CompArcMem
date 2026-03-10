@@ -9,7 +9,7 @@ package cacheDataTypes;
 	// Info for L1 goes here:
 
 	// Info for L2
-	localparam int L2_CAPACITY = 4096;
+	// localparam int L2_CAPACITY = 4096;
 	localparam int L2_WAYS = 4;
 	localparam int L2_SETS = 16;
 	localparam int L2_MSHR_COUNT = 4;

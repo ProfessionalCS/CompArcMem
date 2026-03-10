@@ -21,7 +21,7 @@ module llcd(
 	input logic memReadRespReady, // Cache is ready to accept memory data
 	inout logic [DATA_WIDTH-1:0] memData, // Bidirectional data bus for memory
 	output logic [PADDR_WIDTH-1:0] memAddr, // Address
-	output logic memWriteReqValid, // Data on bus is for a valid write request
+	output logic memWriteReqValid // Data on bus is for a valid write request
 );
 
 
@@ -72,9 +72,9 @@ module llcd(
 		mshrHit = 1'b0;
 		mshrIndex = '0;
 		for (int i = 0; i < L2_MSHR_COUNT; i++) begin
-			if (mshr[i].valid && (mshr[i].blockAddr == l1Addr[29:6])) begin
+			if (mshr[i].valid && (mshr[i].addr == {l1Addr[29:6], 6'b0})) begin
 				mshrHit = 1'b1;
-				mshrIndex = i;
+				mshrIndex = i[$clog2(L2_MSHR_COUNT)-1:0];
 			end
 		end
 	end
@@ -111,7 +111,7 @@ module llcd(
 					for (int i = 0; i < L2_MSHR_COUNT; i++) begin
 						if (!mshr[i].valid && !foundFreeMshr) begin
 							mshr[i].valid <= 1'b1;
-							mshr[i].blockAddr <= l1Addr[29:6]; // Store block-aligned address
+							mshr[i].addr <= {l1Addr[29:6], 6'b0}; // Store block-aligned address
 							mshr[i].tail <= 0;
 							missQueues[i][0] <= '{l1ReqWrite, l1DataIn}; // Store the first miss in the queue
 							mshr[i].tail <= 1;
@@ -136,7 +136,7 @@ module llcd(
 		if (!rstN) begin
 		end else if (l1ReqValid && l1ReqWrite) begin // Write request
 			if (cacheHit) begin
-				dataArray[index][hitWay] <= l1DataIn;
+				dataArray[index][hitWay][blockOffset*8 +: BLOCK_SIZE] <= l1DataIn;
 				lineMd[index][hitWay].dirty <= 1'b1; // Mark line as dirty on write
 				l1RespValid <= 1'b1;
 				// Update PLRU bits for this set
@@ -158,7 +158,7 @@ module llcd(
 					for (int i = 0; i < L2_MSHR_COUNT; i++) begin
 						if (!mshr[i].valid && !foundFreeMshr) begin
 							mshr[i].valid <= 1'b1;
-							mshr[i].blockAddr <= l1Addr[29:6]; // Store block-aligned address
+							mshr[i].addr <= {l1Addr[29:6], 6'b0}; // Store block-aligned address
 							mshr[i].tail <= 0;
 							missQueues[i][0] <= '{l1ReqWrite, l1DataIn}; // Store the first miss in the queue
 							mshr[i].tail <= 1;
@@ -182,5 +182,11 @@ module llcd(
 	// For now, don't have write buffer
 
 
+	always_comb begin
+		memAddr = '0;
+		memWriteReqValid = 1'b0;
+	end
+
+	wire _unused = memReadRespValid | memReadRespReady | plruBits[0][0] | plruBits[0][1] | plruBits[0][2] | missQueues[0][0].isWrite; // Avoid warnings about unused signals
 
 endmodule: llcd /* verilator lint_off EOFNEWLINE */
