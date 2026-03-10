@@ -33,10 +33,11 @@ input  logic [511:0] l2_resp_data             // Full 64-byte cache line from L2
     
 );
 // [511:0] data line 64B, [0:1] way and [0:3] set
-logic [511:0] data_array [0:1][0:3]; 
-logic [39:0]  tag_array  [0:1][0:3];
-logic         valid_array[0:1][0:3];
-logic         dirty_array[0:1][0:3];
+logic [511:0]   data_array  [0:1][0:3]; 
+logic [39:0]    tag_array   [0:1][0:3];
+logic           valid_array [0:1][0:3];
+logic           dirty_array [0:1][0:3];
+logic           lru_array   [0:3];
 
 
 // Tag comparison assume we got a tag fromt he TLB and are waiting so we can just brab the data
@@ -68,9 +69,15 @@ assign lookup_hit_o = hit_way0|hit_way1;
 
 logic tag_match;
 assign hit = 
+
+
+// The MSHR we need to get the data and we need to handle the misses maybe we need to add this
+
+
 //read logc 
+
 // we have 2 mux if the tag matches the way 1 or way two 
- @(posedge clk) begin : blockName
+always_ff @(posedge clk) begin : blockName
     if (!rst_n)begin // reset the thing
     end
     if (lookup_req_i && !req_wdata) begin // we got a request and its not a write 
@@ -79,13 +86,16 @@ assign hit =
                     if (valid_array[0][index] && tag_match == 1)begin:
                         grabbedData = data_array[0][index][63:0]; // depends on offset logic
                         tag_match = tag_array[0][index] == tag;
+                        lru_array[index] = 1'b0; 
                     end
+
                     
 
             end else if (hit_way1) begin
                      if (valid_array[1][index] && tag_match == 1)begin:
                         grabbedData = data_array[1][index][63:0]; // depends on offset logic assume for rn that its the first 64 bits
                         tag_match = tag_array[1][index] == tag;
+                        lru_array[index] = 1'b1; 
                     end
             end
 
@@ -100,30 +110,67 @@ end
 
 always_ff @(posedge clk ) begin : write // asume no evictions rn 
     if (!rst_n) // We are writting nothings to important rst never happens 
+      for (int way = 0; way < 2; way++) // Clean house 
+        for (int sets = 0; sets < 4; sets++)
+            valid_array[way][sets] <= 1'b0;
 
-    if (req_valid && req_write) begin // we have a write request and its valid 
+    else if (req_valid && req_write) begin // we have a write request and its valid 
         //we need to write to a spot on data, write the dirty bit and and update the valid
         // nothing is there we just want something
-        if ((valid_array[0][index] && tag_array[0][index] == tag) || valid_array[0][index] == 0) begin
-            tag_array[0][index] =  tag;
-            valid_array[0][index] = 1;
-            dirty_array[0][index] = 1;
-            data_array[0][index][offset*8 +: 64] = req_wdata;
+        
+        // Hit and we can just change the data or nothings in it
+        if (lookup_hit_o) begin // We got a hit its real and we need to write to that spot
+            if ((valid_array[0][index] && tag_array[0][index] == tag)) begin
+                tag_array[0][index] <=  tag;
+                valid_array[0][index] <= 1;
+                dirty_array[0][index] <= 1;
+                data_array[0][index][offset*8 +: 64] <= req_wdata;
+                lru_array[index] <= 1'b0; 
+                
+                // send data to L2 and make sure they write it
+                resp_valid <= 1'b1;  // Write finished
 
+            end
+            else if (valid_array[1][index] && tag_array[1][index] == tag) begin
+                tag_array[1][index] <=  tag;
+                valid_array[1][index] <= 1;
+                dirty_array[1][index] <= 1;
+                data_array[1][index][offset*8 +: 64] <= req_wdata;
+                lru_array[index] <= 1'b1; 
+                // Logic might be wrong 
+                resp_valid <= 1'b1; hbg
+            end 
         end
-        else if ((valid_array[1][index] && tag_array[1][index] == tag) || valid_array[1][index] == 0) begin
-            tag_array[1][index] =  tag;
-            valid_array[1][index] = 1;
-            dirty_array[1][index] = 1;
-            data_array[1][index][offset*8 +: 64] = req_wdata;
+
+        else begin  // okay so we fucked up and need to get from L2 
+                    //we need to evict some loser or get data either way this is a MSHR
+            // Lets get the data
+            // get data from L2
+            // call function to L2
+            l2_req_valid <= 1'b1;
+            l2_req_addr <= req_addr;    
+            // wait till the data 
+            if (l2_req_valid) begin
+                // L2 (or physical memory and beyond) has the data
+                data_array[lru_array[index]][index] <= l2_resp_data;  // Always succeeds
+                resp_valid <= 1'b1; 
+            end
+
+
+            
+
+            // lets do eviction foor
+            if (lru_array[index] == 0) begin// way 0 was last used so evict 1
+            // Start the eviction process for 1 is just write the data we might need 
+
+
+            end
+            
+
+
         end 
 
 
     end
-
-
-
-
-    
 end       
 endmodule 
