@@ -1,16 +1,20 @@
 `timescale 1ns/1ps
 
-// struct mshr_entry {
-//     logic        valid;          // entry allocated
-//     logic [1:0]  way;            // victim way encoded
-//     logic [1:0]  set;            // index to simplify refill write
-//     logic [21:0] tag;            // match incoming fills
-//     logic        is_store;       // 1 if original op was store
-//     logic [63:0] store_data;     // pending store data (byte-masked)
-//     logic [5:0]  byte_offset;    // which 64b beat the CPU asked for
-//     logic        needs_writeback;// victim dirty
-// };
+typedef struct packed {
+    logic is_store;
+    logic[63:0] data;
+    logic[7:0] mask;
+    logic[5:0] offset;
+} miss_reg_t;
 
+typedef struct packed {
+    logic valid;
+    logic[] block_addr;
+    logic mem_sent;
+    logic done;
+    miss_reg_t queue[4];
+    logic[1:0] tail;
+} mshr_entry_t;
 
 module L1(
 input  logic        clk,                      
@@ -43,6 +47,7 @@ logic [21:0]    tag_array   [0:1][0:3];
 logic           valid_array [0:1][0:3];
 logic           dirty_array [0:1][0:3];
 logic           lru_array   [0:3];
+mshr_entry_t mshr[2];
 
 
 // Tag comparison assume we got a tag fromt he TLB and are waiting so we can just brab the data
@@ -69,6 +74,12 @@ assign offset = req_addr[5:0];
 logic hit_way0, hit_way1;
 assign hit_way0 = valid_array[0][index] && (tag_array[0][index] == tag); // this is 2 way associete 
 assign hit_way1 = valid_array[1][index] && (tag_array[1][index] == tag);
+
+logic hit0, hit1, free0, free1;
+assign hit0 = mshr[0].valid && (mshr[0].block_addr == req_addr[29:6]);
+assign hit1 = mshr[1].valid && (mshr[1].block_addr == req_addr[29:6]);
+assign free0 = !mshr[0].valid;
+assign free1 = !mshr[1].valid;
 
 assign lookup_hit_o = hit_way0|hit_way1;
 
@@ -105,16 +116,32 @@ always_ff @(posedge clk) begin : blockName
                         tag_match <= tag_array[1][index] == tag;
                         lru_array[index] <= 1'b1; 
                     end
+            end else begin  // Read miss — allocate MSHR
+                if (hit0) begin
+                    mshr[0].queue[mshr[0].tail] <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
+                    mshr[0].tail <= mshr[0].tail + 1;
+                end
+                else if (hit1) begin
+                    mshr[1].queue[mshr[1].tail] <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
+                    mshr[1].tail <= mshr[1].tail + 1;
+                end
+                else if (free0) begin
+                    mshr[0].valid      <= 1;
+                    mshr[0].block_addr <= req_addr[29:6];
+                    mshr[0].mem_sent   <= 0;
+                    mshr[0].done       <= 0;
+                    mshr[0].queue[0]   <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
+                    mshr[0].tail       <= 1;
+                end
+                else if (free1) begin
+                    mshr[1].valid      <= 1;
+                    mshr[1].block_addr <= req_addr[29:6];
+                    mshr[1].mem_sent   <= 0;
+                    mshr[1].done       <= 0;
+                    mshr[1].queue[0]   <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
+                    mshr[1].tail       <= 1;
+                end
             end
-        end 
-        else begin // We missed 
-            // okay its not in the queue so we must call L2
-
-            // We have to put it in the MSHR
-
-
-            
-        end
     end 
     
 end
@@ -156,32 +183,33 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
         end
 
         else begin  // okay so we fucked up and need to get from L2 
-                    //we need to evict some loser or get data either way this is a MSHR
-            // Lets get the data
-            // get data from L2
-            // call function to L2
-
-
-            l2_req_valid <= 1'b1;
-            l2_req_addr <= req_addr;    
-            // wait till the data 
-            if (l2_resp_valid) begin
-                // L2 (or physical memory and beyond) has the data
-                data_array[lru_array[index]][index][offset*8 +: 64] <= l2_resp_data[63:0];  // Always succeeds
-                resp_valid <= 1'b1; 
+            if (hit0) begin
+                mshr[0].queue[mshr[0].tail] <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
+                mshr[0].tail <= mshr[0].tail + 1;
             end
-
-            // // lets do eviction foor
-            // if (lru_array[index] == 0) begin: // way 0 was last used so evict 1
-            // // Start the eviction process for 1 is just write the data we might need 
-            // l2_resp_data 
-            // end
-            
-
-
+            else if (hit1) begin
+                mshr[1].queue[mshr[1].tail] <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
+                mshr[1].tail <= mshr[1].tail + 1;
+            end
+            // Primary miss: allocate a free entry
+            else if (free0) begin
+                mshr[0].valid      <= 1;
+                mshr[0].block_addr <= req_addr[29:6];
+                mshr[0].mem_sent   <= 0;
+                mshr[0].done       <= 0;
+                mshr[0].queue[0]   <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
+                mshr[0].tail       <= 1;
+            end
+            else if (free1) begin
+                mshr[1].valid      <= 1;
+                mshr[1].block_addr <= req_addr[29:6];
+                mshr[1].mem_sent   <= 0;
+                mshr[1].done       <= 0;
+                mshr[1].queue[0]   <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
+                mshr[1].tail       <= 1;
+            end
+            // else: both MSHRs full, stall
+            end
         end 
-
-
-    end
-end       
+end
 endmodule 
