@@ -9,10 +9,9 @@ typedef struct packed {
 
 typedef struct packed {
     logic valid;
-    logic[] block_addr;
+    logic [23:0] block_addr;
     logic mem_sent;
     logic done;
-    miss_reg_t queue[4];
     logic[1:0] tail;
 } mshr_entry_t;
 
@@ -48,6 +47,7 @@ logic           valid_array [0:1][0:3];
 logic           dirty_array [0:1][0:3];
 logic           lru_array   [0:3];
 mshr_entry_t mshr[2];
+miss_reg_t mshr_queue[2][4];  // Separate queue storage per MSHR entry
 
 
 // Tag comparison assume we got a tag fromt he TLB and are waiting so we can just brab the data
@@ -116,13 +116,14 @@ always_ff @(posedge clk) begin : blockName
                         tag_match <= tag_array[1][index] == tag;
                         lru_array[index] <= 1'b1; 
                     end
-            end else begin  // Read miss — allocate MSHR
+            end 
+        end else begin  // Read miss — allocate MSHR
                 if (hit0) begin
-                    mshr[0].queue[mshr[0].tail] <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
+                    mshr_queue[0][mshr[0].tail] <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
                     mshr[0].tail <= mshr[0].tail + 1;
                 end
                 else if (hit1) begin
-                    mshr[1].queue[mshr[1].tail] <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
+                    mshr_queue[1][mshr[1].tail] <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
                     mshr[1].tail <= mshr[1].tail + 1;
                 end
                 else if (free0) begin
@@ -130,7 +131,7 @@ always_ff @(posedge clk) begin : blockName
                     mshr[0].block_addr <= req_addr[29:6];
                     mshr[0].mem_sent   <= 0;
                     mshr[0].done       <= 0;
-                    mshr[0].queue[0]   <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
+                    mshr_queue[0][0]   <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
                     mshr[0].tail       <= 1;
                 end
                 else if (free1) begin
@@ -138,11 +139,11 @@ always_ff @(posedge clk) begin : blockName
                     mshr[1].block_addr <= req_addr[29:6];
                     mshr[1].mem_sent   <= 0;
                     mshr[1].done       <= 0;
-                    mshr[1].queue[0]   <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
+                    mshr_queue[1][0]   <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
                     mshr[1].tail       <= 1;
                 end
             end
-    end 
+    end
     
 end
 // assign logic [1:0] selected_way = lru_array[index];
@@ -184,11 +185,11 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
 
         else begin  // okay so we fucked up and need to get from L2 
             if (hit0) begin
-                mshr[0].queue[mshr[0].tail] <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
+                mshr_queue[0][mshr[0].tail] <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
                 mshr[0].tail <= mshr[0].tail + 1;
             end
             else if (hit1) begin
-                mshr[1].queue[mshr[1].tail] <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
+                mshr_queue[1][mshr[1].tail] <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
                 mshr[1].tail <= mshr[1].tail + 1;
             end
             // Primary miss: allocate a free entry
@@ -197,7 +198,7 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
                 mshr[0].block_addr <= req_addr[29:6];
                 mshr[0].mem_sent   <= 0;
                 mshr[0].done       <= 0;
-                mshr[0].queue[0]   <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
+                mshr_queue[0][0]   <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
                 mshr[0].tail       <= 1;
             end
             else if (free1) begin
@@ -205,10 +206,10 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
                 mshr[1].block_addr <= req_addr[29:6];
                 mshr[1].mem_sent   <= 0;
                 mshr[1].done       <= 0;
-                mshr[1].queue[0]   <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
+                mshr_queue[1][0]   <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
                 mshr[1].tail       <= 1;
             end
-            // else: both MSHRs full, stall
+            // else: both MSHRs full, stall 
             end
         end 
 end
