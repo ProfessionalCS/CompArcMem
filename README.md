@@ -19,7 +19,7 @@ Your memory hierarchy consists of the following components:
 
 ### L1 Data Cache
 
-- PIVT non-blocking write-back L1 data cache.
+- VIPT non-blocking write-back L1 data cache.
 - 2 MSHRs
 - 512B capacity
 - 2-way set associative
@@ -61,10 +61,10 @@ The traces are specified in binary according to the following SystemVerilog pseu
 
 ```systemverilog
 typedef enum logic[2:0] {
-    OP_MEM_LOAD = 0,     // perform a memory load
-    OP_MEM_STORE = 1,    // send a memory store
-    OP_MEM_RESOLVE = 2,  // resolve an unresolved address
-    OP_TLB_FILL = 4      // fill a line of the TLB 
+  OP_MEM_LOAD = 0,     // perform a memory load
+  OP_MEM_STORE = 1,    // send a memory store
+  OP_MEM_RESOLVE = 2,  // resolve an unresolved address
+  OP_TLB_FILL = 4      // fill a line of the TLB 
 } op_e;
 
 logic [120:0] trace_line;
@@ -76,12 +76,10 @@ logic trace_vaddr_is_valid = trace_line[55];      // only relevant to mem operat
 logic trace_value_is_valid = trace_line[120];     // only relevant to store operations
 logic [63:0] trace_value = trace_line[119:56];    // only relevant to store operations
 logic [29:0] trace_tlb_paddr = trace_line[85:56]; // only relevant to TLB fill operations
-Notes on Dependencies
-
 ```
 
 
-##Notes on Dependencies
+## Notes on Dependencies
 
 Remember that register renaming tracks register dependences while maintaining RAW; it does not track dependencies between the effective addresses of loads and stores. This is what the LSQ is used for.
 
