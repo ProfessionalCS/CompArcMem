@@ -11,10 +11,10 @@ module llcd(
 	/** Interface to L1 cache **/
 	input logic l1ReqValid, // l2_req_valid from l1
 	input logic l1ReqWrite, // 1=write request, 0=read request
-	input logic [ADDR_WIDTH-1:0] l1Addr, // l2_req_addr from l1
+	input logic [ADDR_WIDTH-1:0] l1Addr, // l2_req_addr from l1, address sent by l1
 	input logic [DATA_WIDTH-1:0] l1DataIn,
-	output logic [DATA_WIDTH-1:0] l1DataOut, // Response/backpropagated line to L1
-	output logic l1RespValid, // l2_resp_valid to l1
+	output logic [DATA_WIDTH-1:0] l1DataOut, // l2_resp_data from l1, data going into l1
+	output logic l1RespValid, // l2_resp_valid from l1
 
 	/** Interface to memory controller **/
 	input logic memReadReqReady,
@@ -30,7 +30,12 @@ module llcd(
 
 
 	logic [DATA_WIDTH-1:0] dataArray [SETS-1:0][WAYS-1:0];
-	lineMetadata lineMd [SETS-1:0][WAYS-1:0];
+	l2LineMetadata lineMd [SETS-1:0][WAYS-1:0];
+
+	// Using PLRU for replacement
+	// Need A-1 bits per set
+	logic [WAYS-2:0] plruBits [SETS-1:0];
+
 	// mshrEntry mshrEntries [MSHR_COUNT-1:0];
 
 	// Extract index and tag from the address
@@ -78,80 +83,64 @@ module llcd(
 	// 	end
 	// end
 
-	// Hit response + inclusivity backpropagation to L1.
-	always_comb begin
-		l1RespValid = l1ReqValid && cacheHit;
-		l1DataOut = '0;
-		if (cacheHit) begin
-			if (l1ReqWrite) begin
-				// Backpropagate updated line to L1 on write hits.
-				l1DataOut = l1DataIn;
-			end else begin
-				l1DataOut = dataArray[index][hitWay];
-			end
-		end
-	end
+	// Herein assume a hit was made
 
-
-	always_comb begin
-		memAddr = '0;
-		memDataOut = '0;
-		memReadReqValid = 1'b0;
-		memReadRespReady = 1'b0;
-		memWriteReqValid = 1'b0;
-
-		// Placeholder references to avoid accidental unused-interface drift while
-		// miss logic is under construction.
-		if (memReadReqReady || memReadRespValid || memWriteReqReady || (|memDataIn)) begin
-			memAddr = '0;
-		end
-	end
-
-	always_ff @(posedge clk or negedge rstN) begin
+	// Handle reads:
+	always_ff @(posedge clk) begin
 		if (!rstN) begin
-			for (int s = 0; s < SETS; s++) begin
-				for (int w = 0; w < WAYS; w++) begin
-					dataArray[s][w] <= '0;
-					lineMd[s][w] <= '0;
-				end
-			end
+			l1DataOut <= '0;
+			l1RespValid <= 1'b0;
+		end else if (l1ReqValid && !l1ReqWrite) begin // Read request
+			if (cacheHit) begin
+				l1DataOut <= dataArray[index][hitWay];
+				l1RespValid <= 1'b1;
 
-			// for (int m = 0; m < MSHR_COUNT; m++) begin
-			// 	mshrEntries[m] <= '0;
-			// end
+				// Update PLRU bits for this set
+				if (hitWay < 2) begin
+					plruBits[index][0] <= (hitWay == 0) ? 1'b1 : 1'b0; // If we hit way0, set bit0 to 1, else set to 0
+				end else begin
+					plruBits[index][1] <= (hitWay == 2) ? 1'b1 : 1'b0; // If we hit way2, set bit1 to 1, else set to 0
+				end
+				plruBits[index][2] <= (hitWay < 2) ? 1'b1 : 1'b0; // If we hit in the upper half (way0 or way2), set bit2 to 1, else set to 0
+
+			end else begin
+				l1DataOut <= '0;
+				l1RespValid <= 1'b0;
+			end
 		end else begin
-			if (l1ReqValid && cacheHit) begin
-				if (l1ReqWrite) begin
-					dataArray[index][hitWay] <= l1DataIn;
-					lineMd[index][hitWay].dirty <= 1'b1;
-				end
-
-				lineMd[index][hitWay].valid <= 1'b1;
-				lineMd[index][hitWay].tag <= tag;
-
-				for (int w = 0; w < WAYS; w++) begin
-					if (w == hitWay) begin
-						lineMd[index][w].mruBits <= 2'd3;
-					end else if (lineMd[index][w].mruBits != 2'd0) begin
-						lineMd[index][w].mruBits <= lineMd[index][w].mruBits - 2'd1;
-					end
-				end
-			end
-
-			// if (missDetected && mshrFree) begin
-			// 	mshrEntries[mshrFreeIdx].valid <= 1'b1;
-			// 	mshrEntries[mshrFreeIdx].blockAddr <= {
-			// 		l1Addr[ADDR_WIDTH-1:OFFSET_WIDTH],
-			// 		{OFFSET_WIDTH{1'b0}}
-			// 	};
-			// 	mshrEntries[mshrFreeIdx].isWrite <= l1ReqWrite;
-			// 	mshrEntries[mshrFreeIdx].wdata <= l1DataIn;
-			// end
+			l1DataOut <= '0;
+			l1RespValid <= 1'b0;
 		end
 	end
 
-	logic _unused_blockOffset;
-	assign _unused_blockOffset = ^blockOffset;
+	// Maybe later use write-back buffer???
+
+	// Handle writes
+	// For now, just write directly to the cache on a hit. No write buffer.
+	always_ff @(posedge clk) begin
+		if (!rstN) begin
+			// Reset logic if needed
+		end else if (l1ReqValid && l1ReqWrite) begin // Write request
+			if (cacheHit) begin
+				dataArray[index][hitWay] <= l1DataIn;
+				lineMd[index][hitWay].dirty <= 1'b1; // Mark line as dirty on write
+				l1RespValid <= 1'b1;
+				// Update PLRU bits for this set
+				if (hitWay < 2) begin
+					plruBits[index][0] <= (hitWay == 0) ? 1'b1 : 1'b0;
+				end else begin
+					plruBits[index][1] <= (hitWay == 2) ? 1'b1 : 1'b0;
+				end
+				plruBits[index][2] <= (hitWay < 2) ? 1'b1 : 1'b0;
+			end else begin
+				l1RespValid <= 1'b0;
+			end
+		end else begin
+			l1RespValid <= 1'b0;
+		end
+	end
+
+
 
 endmodule: llcd /* verilator lint_off EOFNEWLINE */
 

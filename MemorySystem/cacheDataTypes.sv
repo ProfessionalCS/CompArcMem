@@ -1,17 +1,17 @@
 `timescale 1ns/1ps
 
 package cacheDataTypes;
-	localparam int CAPACITY = 4096;
+	localparam int L2_CAPACITY = 4096;
 	localparam int BLOCK_SIZE = 64;
-	localparam int WAYS = 4;
-	localparam int SETS = 16;
-	localparam int MSHR_COUNT = 4;
-	localparam int WAY_WIDTH = $clog2(WAYS);
-	localparam int ADDR_WIDTH = 30; // 1 GB address space
+	localparam int L2_WAYS = 4;
+	localparam int L2_SETS = 16;
+	localparam int L2_MSHR_COUNT = 4;
+	localparam int L2_WAY_WIDTH = $clog2(L2_WAYS);
+	localparam int L2_ADDR_WIDTH = 30; // 1 GB address space
 	localparam int DATA_WIDTH = 512;
 	localparam int OFFSET_WIDTH = $clog2(BLOCK_SIZE);
-	localparam int INDEX_WIDTH = $clog2(SETS);
-	localparam int TAG_WIDTH = ADDR_WIDTH - OFFSET_WIDTH - INDEX_WIDTH;
+	localparam int L2_INDEX_WIDTH = $clog2(L2_SETS);
+	localparam int L2_TAG_WIDTH = L2_ADDR_WIDTH - OFFSET_WIDTH - L2_INDEX_WIDTH;
 
 	// typedef struct packed {
 	// 	logic valid;
@@ -21,10 +21,9 @@ package cacheDataTypes;
 	// } mshrEntry;
 
 	typedef struct packed {
-		logic [TAG_WIDTH-1:0] tag;
+		logic [L2_TAG_WIDTH-1:0] tag;
 		logic valid;
 		logic dirty;
-		logic [1:0] mruBits; // For 4-way, we need 2 bits to track MRU status
-	} lineMetadata; // Metadata for each cache line
+	} l2LineMetadata; // Metadata for each cache line
 
 endpackage: cacheDataTypes /* verilator lint_off EOFNEWLINE */
