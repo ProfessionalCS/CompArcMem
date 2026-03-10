@@ -2,7 +2,6 @@
 /* verilator lint_off UNUSEDSIGNAL */
 /* verilator lint_off UNUSEDPARAM */
 /* verilator lint_off PINCONNECTEMPTY */
-/* verilator lint_off WIDTHEXPAND */
 /* verilator lint_off DECLFILENAME */
 
 `timescale 1ns/1ps
