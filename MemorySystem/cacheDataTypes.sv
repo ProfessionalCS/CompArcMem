@@ -14,9 +14,9 @@ package cacheDataTypes;
 	localparam int L2_SETS = 16;
 	localparam int L2_MSHR_COUNT = 4;
 	localparam int L2_WAY_WIDTH = $clog2(L2_WAYS);
-	localparam int L2_ADDR_WIDTH = 30; // 1 GB address space (physical)
+	localparam int PADDR_WIDTH = 30; // 1 GB address space (physical)
 	localparam int L2_INDEX_WIDTH = $clog2(L2_SETS);
-	localparam int L2_TAG_WIDTH = L2_ADDR_WIDTH - OFFSET_WIDTH - L2_INDEX_WIDTH;
+	localparam int L2_TAG_WIDTH = PADDR_WIDTH - OFFSET_WIDTH - L2_INDEX_WIDTH;
 	localparam int L2_MSHR_QUEUE_SIZE = 8;
 
 
@@ -25,12 +25,12 @@ package cacheDataTypes;
 
 	typedef struct packed {
 		logic isWrite;
-		logic [DATA_WIDTH-1:0] writeData; // Data to write for store, don't care for load
+		logic [BLOCK_SIZE-1:0] writeData; // Data to write for store, don't care for load
 	} l2_mshr_miss_t;
 
 	typedef struct packed {
-		logic valid;
-		logic [L2_ADDR_WIDTH-1:0] blockAddr;
+		logic valid; // This MSHR is active and tracking misses
+		logic [PADDR_WIDTH-1:0] addr; // Address of the miss being tracked (block-aligned)
 		logic[$clog2(L2_MSHR_QUEUE_SIZE)-1:0] tail;
 	} l2_mshr_t;
 
