@@ -15,13 +15,14 @@
 // Format of entry:
 // Valid            | 1b          | Active instruction vs. inactive instruction
 // Resolved         | 1b          | Address has been calculated by the processor
-// Addr             | 48b         | Virtual address
-// Value Valid      | 1b          | Data is valid (for stores)
+// Addr             | 48b         | Virtual address (EA)
+// Value Valid      | 1b          | Data is valid (loads: cache returned; stores: data known)
 // Data             | 64b         | Data
 // Trace ID         | 4b          | Trace ID for matching with trace lines
-// SQ Tail          | 3b          | Only for store queue, indicates the position in the store queue for forwarding
-// LQ Tail          | 3b          | Only for load queue, indicates the position in the load queue for forwarding
-// Total: 1 + 1 + 48 + 1 + 64 + 4 + 3 + 3 = 125 bits per entry
+// SQ Tail          | 3b          | Snapshot of store_tail at enqueue (forwarding lower bound)
+// LQ Tail          | 3b          | Snapshot of load_tail at enqueue (forwarding lower bound)
+// Phys Addr        | 30b         | Physical address from TLB translation (saved on TLB hit)
+// Total: 1 + 1 + 48 + 1 + 64 + 4 + 3 + 3 + 30 = 155 bits per entry
 
 // ----------------------------------------------------------------------------------------------------
 // 
@@ -93,7 +94,7 @@ module lsq # (
     
     localparam int LOAD_QUEUE_SIZE = N>>1;  // 16 entries -> 8 loads and 8 stores
     localparam int STORE_QUEUE_SIZE = N>>1;
-    localparam int ENTRY_SIZE = 125;
+    localparam int ENTRY_SIZE = 155;
     localparam int EA_SIZE = 48;
     localparam int PA_SIZE = 30;
     localparam int DATA_SIZE = 64;
@@ -108,6 +109,7 @@ module lsq # (
     localparam int TRACE_ID_IDX = DATA_IDX - DATA_SIZE;
     localparam int SQ_TAIL_IDX = TRACE_ID_IDX - TRACE_ID_SIZE;
     localparam int LQ_TAIL_IDX = SQ_TAIL_IDX - $clog2(STORE_QUEUE_SIZE);
+    localparam int PA_IDX = LQ_TAIL_IDX - $clog2(LOAD_QUEUE_SIZE);
 
     logic tlb_pending;                                      // TLB response is expected next cycle
     logic tlb_pending_is_load;                              // 1 = LOAD queue, 0 = STORE queue
@@ -328,32 +330,30 @@ module lsq # (
                 tlb_req <= 0;
                 tlb_pending <= 0;
 
-                // Set resolved in the correct queue entry
-                // We kept track of what entry (and whether it was store or load) was to be updated
+                // Save the translated PA into the entry and mark it resolved.
+                // The PA is needed at commit time: loads read the cache immediately
+                // (fire-and-forget read), stores write the cache only at retirement.
                 if (tlb_pending_is_load) begin
                     load_entries[tlb_pending_idx][RESOLVED_IDX] <= 1;
-                end else begin
-                    store_entries[tlb_pending_idx][RESOLVED_IDX] <= 1;
-                end
+                    load_entries[tlb_pending_idx][PA_IDX-:PA_SIZE] <= tlb_paddr;
 
-                // Forward the translation results (PA) to the cache
-                if (cache_ready) begin
-                    cache_req <= 1;
-                    cache_paddr <= tlb_paddr;
-                    cache_we <= ~tlb_pending_is_load;   // 0 = load, 1 = store
-
-                    if (tlb_pending_is_load) begin
+                    // Loads: fire the cache read right now so data arrives ASAP.
+                    if (cache_ready) begin
+                        cache_req <= 1;
+                        cache_we <= 0;          // read
+                        cache_paddr <= tlb_paddr;
                         cache_wdata <= '0;
                         cache_pending_idx <= tlb_pending_idx;
                         cache_pending <= 1;
-                    end else begin
-                        // Store (send right away)
-                        cache_wdata <= store_entries[tlb_pending_idx][DATA_IDX-:DATA_SIZE];
-                        cache_pending <= 0;
                     end
+                    // TODO: handle cache_ready=0 (stall or replay)
+
                 end else begin
-                    // TODO: What if cache is not ready?, just move onto the next instruction?
-                    // DO NOT ACCEPT MORE TLB TRANSLATIONS, WE HAVE NOWHERE TO STORE IT?
+                    store_entries[tlb_pending_idx][RESOLVED_IDX] <= 1;
+                    store_entries[tlb_pending_idx][PA_IDX-:PA_SIZE] <= tlb_paddr;
+                    // Stores: do NOT write the cache here.
+                    // The write is deferred to retirement so we only commit the youngest store to each address (WAW suppression)
+                    // Writeback if non speculative
                 end
             end
 
@@ -374,6 +374,7 @@ module lsq # (
                             load_entries[load_tail][TRACE_ID_IDX-:TRACE_ID_SIZE] <= trace_id;
                             load_entries[load_tail][SQ_TAIL_IDX-:$clog2(LOAD_QUEUE_SIZE)] <= store_tail; 
                             load_entries[load_tail][LQ_TAIL_IDX-:$clog2(LOAD_QUEUE_SIZE)] <= '0;
+                            load_entries[load_tail][PA_IDX-:PA_SIZE] <= '0;
                             
                             load_tail <= $clog2(LOAD_QUEUE_SIZE)'(load_tail + 1); // Another way to do modulo wraparound
 
@@ -395,6 +396,7 @@ module lsq # (
                             store_entries[store_tail][TRACE_ID_IDX-:TRACE_ID_SIZE] <= trace_id;
                             store_entries[store_tail][SQ_TAIL_IDX-:$clog2(STORE_QUEUE_SIZE)] <= '0; 
                             store_entries[store_tail][LQ_TAIL_IDX-:$clog2(STORE_QUEUE_SIZE)] <= load_tail;
+                            store_entries[store_tail][PA_IDX-:PA_SIZE] <= '0;
                             
                             store_tail <= $clog2(STORE_QUEUE_SIZE)'(store_tail + 1); // Another way to do modulo wraparound
 
@@ -467,14 +469,21 @@ module lsq # (
                 end
             end
 
-            // Retire the oldest store if it is fully resolved and its data is valid
-            if (store_entries[store_head][VALID_IDX] && 
-                store_entries[store_head][RESOLVED_IDX] && 
+            // Retire the oldest store when it is fully resolved and its data is valid
+            // At this point the store is non-speculative: commit to cache then dequeue
+            if (store_entries[store_head][VALID_IDX] &&
+                store_entries[store_head][RESOLVED_IDX] &&
                 store_entries[store_head][VVALID_IDX]) begin
 
-                if (store_is_empty) begin
-                    store_entries[store_head][VALID_IDX] <= 0; // Invalidate entry
-                    store_head <= $clog2(STORE_QUEUE_SIZE)'(store_head + 1); // Move head pointer
+                if (!store_is_empty) begin
+                    // Commit the store data to the cache using the saved PA.
+                    cache_req <= 1;
+                    cache_we <= 1;
+                    cache_paddr <= store_entries[store_head][PA_IDX-:PA_SIZE];
+                    cache_wdata <= store_entries[store_head][DATA_IDX-:DATA_SIZE];
+
+                    store_entries[store_head][VALID_IDX] <= 0;
+                    store_head <= $clog2(STORE_QUEUE_SIZE)'(store_head + 1);
                 end
             end
         end
