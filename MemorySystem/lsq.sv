@@ -123,6 +123,7 @@ module lsq # (
     logic [STORE_QUEUE_SIZE-1:0][ENTRY_SIZE-1:0] store_entries;
     logic [$clog2(LOAD_QUEUE_SIZE)-1:0] load_head, load_tail;
     logic [$clog2(STORE_QUEUE_SIZE)-1:0] store_head, store_tail;
+
     logic load_is_full, load_is_empty;
     logic store_is_full, store_is_empty;
 
@@ -213,8 +214,11 @@ module lsq # (
     // Priority encoders for forwarding
     logic [$clog2(STORE_QUEUE_SIZE)-1:0] fwd_store_to_load_idx;
     logic [$clog2(STORE_QUEUE_SIZE)-1:0] tmp_store_idx; // Tmp holder
+
+    logic suppress_wb_stores_after_store;
     always_comb begin
         fwd_store_to_load_idx = '0;
+        suppress_wb_stores_after_store = 0;
 
         // Load is resolving so it needs to pull from the earliest store from the store queue with matching EA
         for (int i = 0; i < STORE_QUEUE_SIZE; i++) begin
@@ -224,7 +228,19 @@ module lsq # (
             end
         end
 
-        // Note: we don't have to anything to find the oldest store, mark it for updating the cache otherwise bypass writes to everything else
+        // Find the oldest store, mark it for updating the cache otherwise bypass writes to everything else
+        // Aka store forwarding
+        for (int i = 1; i < STORE_QUEUE_SIZE; i++) begin
+            tmp_store_idx = $clog2(STORE_QUEUE_SIZE)'(store_head + i); // Start at the head + 1, find matching EA
+            
+            // Check if the younger entry is valid, resolved, and matches the retiring store's EA
+            if (store_entries[tmp_store_idx][VALID_IDX] &&
+                store_entries[tmp_store_idx][RESOLVED_IDX] &&
+                (store_entries[tmp_store_idx][EA_IDX-:EA_SIZE] == store_entries[store_head][EA_IDX-:EA_SIZE])) begin
+                suppress_wb_stores_after_store = 1;
+                break;
+            end
+        end
     end
 
     // Find indices for resolving instructions out of order
@@ -372,7 +388,7 @@ module lsq # (
                             load_entries[load_tail][VVALID_IDX] <= 0;                        
                             load_entries[load_tail][DATA_IDX-:DATA_SIZE] <= '0;
                             load_entries[load_tail][TRACE_ID_IDX-:TRACE_ID_SIZE] <= trace_id;
-                            load_entries[load_tail][SQ_TAIL_IDX-:$clog2(LOAD_QUEUE_SIZE)] <= store_tail; 
+                            load_entries[load_tail][SQ_TAIL_IDX-:$clog2(LOAD_QUEUE_SIZE)] <= store_tail;
                             load_entries[load_tail][LQ_TAIL_IDX-:$clog2(LOAD_QUEUE_SIZE)] <= '0;
                             load_entries[load_tail][PA_IDX-:PA_SIZE] <= '0;
                             
@@ -476,12 +492,15 @@ module lsq # (
                 store_entries[store_head][VVALID_IDX]) begin
 
                 if (!store_is_empty) begin
-                    // Commit the store data to the cache using the saved PA.
-                    cache_req <= 1;
-                    cache_we <= 1;
-                    cache_paddr <= store_entries[store_head][PA_IDX-:PA_SIZE];
-                    cache_wdata <= store_entries[store_head][DATA_IDX-:DATA_SIZE];
+                    if (!suppress_wb_stores_after_store) begin
+                        // Commit the store data to the cache using the saved PA.
+                        cache_req <= 1;
+                        cache_we <= 1;
+                        cache_paddr <= store_entries[store_head][PA_IDX-:PA_SIZE];
+                        cache_wdata <= store_entries[store_head][DATA_IDX-:DATA_SIZE];
+                    end
 
+                    // Dequeue irregardless of the store writing to the cache
                     store_entries[store_head][VALID_IDX] <= 0;
                     store_head <= $clog2(STORE_QUEUE_SIZE)'(store_head + 1);
                 end
