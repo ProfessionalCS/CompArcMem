@@ -70,18 +70,18 @@ module lsq_tb;
         .cache_wdata      (/* */)
     );
 
-    localparam int ENTRY_SIZE    = 125;
-    localparam int VALID_IDX     = 124;
-    localparam int RESOLVED_IDX  = 123;
-    localparam int EA_IDX        = 122;
-    localparam int EA_SIZE       = 48;
-    localparam int VVALID_IDX    = 74;
-    localparam int DATA_IDX      = 73;
-    localparam int DATA_SIZE     = 64;
-    localparam int TRACE_ID_IDX  = 9;
-    localparam int SQ_TAIL_IDX   = 5;
-    localparam int LQ_TAIL_IDX   = 2;
-    
+    localparam int ENTRY_SIZE = 155;
+    localparam int VALID_IDX = 154;
+    localparam int RESOLVED_IDX = 153;
+    localparam int EA_IDX = 152;
+    localparam int EA_SIZE = 48;
+    localparam int VVALID_IDX = 104;
+    localparam int DATA_IDX = 103;
+    localparam int DATA_SIZE = 64;
+    localparam int TRACE_ID_IDX = 39;
+    localparam int SQ_TAIL_IDX = 35;
+    localparam int LQ_TAIL_IDX = 32;
+    localparam int PA_IDX = 29;
 
     // Shorthand hierarchical aliases
     // Use for LSQ dumps (dumps all internals)
@@ -214,10 +214,15 @@ module lsq_tb;
         end
     endtask
 
+    // Search all slots by tid, regardless of VALID.
+    // On retirement only VALID is cleared; tid/data/vval are preserved.
+    // We match on tid AND (VALID || RESOLVED) — RESOLVED stays 1 post-retirement,
+    // confirming the slot held a real (not zeroed) entry.
     task automatic check_load_entry (input logic [3:0] tid, input logic [63:0] exp_data, input logic exp_vvalid);
         logic found = 0;
         for (int i = 0; i < 8; i++) begin
-            if (load_entries[i][VALID_IDX] && load_entries[i][TRACE_ID_IDX-:4] == tid) begin
+            if ((load_entries[i][VALID_IDX] || load_entries[i][RESOLVED_IDX]) &&
+                 load_entries[i][TRACE_ID_IDX-:4] == tid) begin
                 check_bool($sformatf("LQ tid=%0h vvalid", tid), load_entries[i][VVALID_IDX], exp_vvalid);
                 if (exp_vvalid)
                     check_val($sformatf("LQ tid=%0h data",  tid), load_entries[i][DATA_IDX-:DATA_SIZE], exp_data);
@@ -225,15 +230,19 @@ module lsq_tb;
             end
         end
         if (!found) begin
-            $display("  FAIL: no active LQ entry with tid=%0h", tid);
+            $display("  FAIL: no LQ entry found with tid=%0h", tid);
             fail_count++;
         end
     endtask
 
+    // Search all slots by tid, regardless of VALID.
+    // On retirement only VALID is cleared; RESOLVED stays 1 post-retirement,
+    // confirming the slot held a real (not zeroed) entry.
     task automatic check_store_entry (input logic [3:0] tid, input logic [63:0] exp_data, input logic exp_vvalid);
         logic found = 0;
         for (int i = 0; i < 8; i++) begin
-            if (store_entries[i][VALID_IDX] && store_entries[i][TRACE_ID_IDX-:4] == tid) begin
+            if ((store_entries[i][VALID_IDX] || store_entries[i][RESOLVED_IDX]) &&
+                 store_entries[i][TRACE_ID_IDX-:4] == tid) begin
                 check_bool($sformatf("SQ tid=%0h vvalid", tid), store_entries[i][VVALID_IDX], exp_vvalid);
                 if (exp_vvalid)
                     check_val($sformatf("SQ tid=%0h data",  tid), store_entries[i][DATA_IDX-:DATA_SIZE], exp_data);
@@ -252,7 +261,7 @@ module lsq_tb;
     task automatic dump_load_queue ();
         $display("[LQ] head=%0d  tail=%0d", load_head, load_tail);
         for (int i = 0; i < 8; i++) begin
-            $display("      LQ[%0d] V=%b  R=%b  tid=%h  ea=%012h  vval=%b  data=%016h  sq_tail=%0d  lq_tail=%0d",
+            $display("      LQ[%0d]  V=%b  R=%b  tid=%h  ea=%012h  vval=%b  data=%016h  sq_tail=%0d  lq_tail=%0d  pa_idx=%012h",
                 i,
                 load_entries[i][VALID_IDX],
                 load_entries[i][RESOLVED_IDX],
@@ -261,14 +270,15 @@ module lsq_tb;
                 load_entries[i][VVALID_IDX],
                 load_entries[i][DATA_IDX-:DATA_SIZE],
                 load_entries[i][SQ_TAIL_IDX-:3],
-                load_entries[i][LQ_TAIL_IDX-:3]);
+                load_entries[i][LQ_TAIL_IDX-:3],
+                load_entries[i][PA_IDX:0]);
         end
     endtask
 
     task automatic dump_store_queue ();
         $display("[SQ] head=%0d  tail=%0d", store_head, store_tail);
         for (int i = 0; i < 8; i++) begin
-            $display("      SQ[%0d] V=%b  R=%b  tid=%h  ea=%012h  vval=%b  data=%016h  sq_tail=%0d  lq_tail=%0d",
+            $display("      SQ[%0d]  V=%b  R=%b  tid=%h  ea=%012h  vval=%b  data=%016h  sq_tail=%0d  lq_tail=%0d  pa_idx=%012h",
                 i,
                 store_entries[i][VALID_IDX],
                 store_entries[i][RESOLVED_IDX],
@@ -277,7 +287,8 @@ module lsq_tb;
                 store_entries[i][VVALID_IDX],
                 store_entries[i][DATA_IDX-:DATA_SIZE],
                 store_entries[i][SQ_TAIL_IDX-:3],
-                store_entries[i][LQ_TAIL_IDX-:3]);
+                store_entries[i][LQ_TAIL_IDX-:3],
+                store_entries[i][PA_IDX:0]);
         end
     endtask
 
@@ -293,7 +304,6 @@ module lsq_tb;
     task automatic dumps();
         dump_load_queue();
         dump_store_queue();
-        dump_fwd();
         $display("\n");
     endtask
 
@@ -336,13 +346,22 @@ module lsq_tb;
         #1;
     endtask
 
-    // Drive a trace then pull trace_line back to idle for one extra cycle
-    // Use this between consecutive operations so trace_id_prev != trace_id
-    // is guaranteed for the next operation.
+    // IDLE SENTINEL: op=3'b111 (unimplemented, hits default: → no enqueue),
+    // tid=4'hF (reserved, never used by real ops 0x1..0xE).
+    // After the idle posedge trace_id_prev=0xF, so any real trace with
+    // tid 0x0..0xE always satisfies tid!=trace_id_prev and fires.
+    // This also fixes same-tid follow-ups (e.g. RESOLVE reusing the load's tid).
+    localparam logic [3:0] IDLE_TID = 4'hF;
+    localparam logic [2:0] IDLE_OP  = 3'b111; // unimplemented → default case
+
     task automatic drive_trace_idle (input logic [120:0] tl);
+        logic [120:0] idle;
         drive_trace(tl);
+        idle        = '0;
+        idle[54:52] = IDLE_OP;
+        idle[51:48] = IDLE_TID;
         @(negedge clk);
-        trace_line = '0;
+        trace_line = idle;
         @(posedge clk);
         #1;
     endtask
@@ -356,13 +375,17 @@ module lsq_tb;
         // Check here
     endtask
 
-    // Call after drive_and_sample_1cyc() to complete the test case (read the inputs and then outputs)
-    task automatic drive_and_sample_finish ();
+    // Call after drive_and_sample_1cyc() to complete the trace and idle.
+    task automatic drive_and_sample_finish (input logic [120:0] tl);
+        logic [120:0] idle;
         repeat(2) @(posedge clk); // Posedges 2 and 3
+        idle        = '0;
+        idle[54:52] = IDLE_OP;
+        idle[51:48] = IDLE_TID;
         @(negedge clk);
-        trace_line = '0;
-        @(posedge clk); 
-        #1; // Idle posedge
+        trace_line = idle;
+        @(posedge clk);
+        #1;
     endtask
 
     task automatic do_reset ();
@@ -380,6 +403,8 @@ module lsq_tb;
     //  Main test sequence
     // -----------------------------------------------------------------------
     logic [120:0] tl;
+    logic [120:0] tl_rs;
+    logic [120:0] tl_rl;
     initial begin
         pass_count = 0;
         fail_count = 0;
@@ -418,8 +443,8 @@ module lsq_tb;
         // LOAD tid=2 from 0x1000
         tl = make_trace(3'd0, 4'h2, 48'h0000_0000_1000, 1, '0, 0, '0);
         drive_trace_idle(tl);
-        dumps();
         repeat(5) @(posedge clk);  // 2-cycle cache + pipeline margin
+        dumps();
         check_load_entry(4'h2, 64'hAAAA_BBBB_CCCC_DDDD, 1);
         $display("----------------------------------------------------------------");
 
@@ -435,25 +460,36 @@ module lsq_tb;
         // Use drive_and_sample_1cyc to capture it in that one-cycle window
         // ----------------------------------------------------------------
         $display("\nTC3: Store-to-Load Forwarding (RAW)");
-        // STORE tid=3 to 0x2000, known EA -> resolves via TLB immediately
-        tl = make_trace(3'd1, 4'h3, 48'h0000_0000_2000, 1, 64'h1111_1111_1111_1111, 1, '0);
+        // STORE tid=3, UNKNOWN EA (va_valid=0) so it is NOT resolved via TLB.
+        // Stays in SQ as VALID=1, RESOLVED=0 — will not retire until we RESOLVE it.
+        tl = make_trace(3'd1, 4'h3, 48'h0, 0, 64'h1111_1111_1111_1111, 1, '0);
         drive_trace_idle(tl);
         dumps();
-        repeat(4) @(posedge clk); // TLB hit fires -> store RESOLVED=1 in SQ
 
         // LOAD tid=4, UNKNOWN EA — enqueued unresolved, no TLB request
         tl = make_trace(3'd0, 4'h4, 48'h0, 0, '0, 0, '0);
         drive_trace_idle(tl);
         dumps();
 
-        // OP_MEM_RESOLVE tid=4 to EA=0x2000 -> triggers forwarding path
-        // LSQ sets load VVALID=1 and copies store data at this posedge
-        // Load retires at the NEXT posedge, so sample immediately after posedge 1
-        tl = make_trace(3'd2, 4'h4, 48'h0000_0000_2000, 1, '0, 0, '0);
-        drive_and_sample_1cyc(tl);                          // posedge 1 — data written
-        check_load_entry(4'h4, 64'h1111_1111_1111_1111, 1); // sample here before retire
-        drive_and_sample_finish();
+        // Posedge A — OP_MEM_RESOLVE store tid=3 to EA=0x2000
+        //   sets store RESOLVED<=1, EA<=0x2000, fires TLB for PA
+        //   Retirement check at posedge A: RESOLVED was 0 (old value) -> no retire
+        // After posedge A: store has RESOLVED=1, EA=0x2000, VALID=1, VVALID=1
+        tl_rs = make_trace(3'd2, 4'h3, 48'h0000_0000_2000, 1, '0, 0, '0);
+        drive_and_sample_1cyc(tl_rs);   // stops after posedge A; store alive
         dumps();
+        
+        // Posedge B — OP_MEM_RESOLVE load tid=4 to EA=0x2000, immediately next cycle
+        //   At posedge B: store VALID=1 (retirement sees it and sets VALID<=0 this cycle
+        //   but the NBD hasn't committed yet). The RESOLVE load handler reads pre-cycle
+        //   VALID=1, RESOLVED=1, EA=0x2000 -> store_matches fires -> FORWARDING fires
+        //   VVALID<=1, DATA<=store_data written into load entry, also in this same posedge
+        //   Load is now RESOLVED=1, VVALID=1 and will retire next posedge (sample here)
+        tl_rl = make_trace(3'd2, 4'h4, 48'h0000_0000_2000, 1, '0, 0, '0);
+        drive_and_sample_1cyc(tl_rl);   // stops after posedge B
+        dumps();
+        check_load_entry(4'h4, 64'h1111_1111_1111_1111, 1);
+        drive_and_sample_finish(tl_rl);
 
         repeat(10) @(posedge clk); // drain queue
         $display("----------------------------------------------------------------");
