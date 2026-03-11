@@ -1,0 +1,185 @@
+====== LSQ + dTLB Integration Testbench ======
+
+TC1: OP_TLB_FILL end-to-end into real dTLB
+  PASS [LQ tid=1 vvalid]  val=1
+  PASS [LQ tid=1 data]  val=0xdeadcafedeadcafe
+----------------------------------------------------------------
+
+TC2: Store → dTLB → cache commit → load reads back
+[LQ] head=2  tail=2
+      LQ[0]  V=0  R=1  tid=1  ea=0000aaaa1000  vval=1  data=deadcafedeadcafe  sq_tail=0  lq_tail=0  pa_idx=000011111000
+      LQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000020000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=1  tail=1
+      SQ[0]  V=0  R=1  tid=2  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=1  pa_idx=000000020000
+      SQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+  PASS [LQ tid=3 vvalid]  val=1
+  PASS [LQ tid=3 data]  val=0xaaaabbbbccccdddd
+----------------------------------------------------------------
+
+TC3: Store-to-Load forwarding (RAW) via OP_MEM_RESOLVE
+[LQ] head=2  tail=2
+      LQ[0]  V=0  R=1  tid=1  ea=0000aaaa1000  vval=1  data=deadcafedeadcafe  sq_tail=0  lq_tail=0  pa_idx=000011111000
+      LQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000020000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=1  tail=2
+      SQ[0]  V=0  R=1  tid=2  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=1  pa_idx=000000020000
+      SQ[1]  V=1  R=0  tid=4  ea=000000000000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=2  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=2  tail=3
+      LQ[0]  V=0  R=1  tid=1  ea=0000aaaa1000  vval=1  data=deadcafedeadcafe  sq_tail=0  lq_tail=0  pa_idx=000011111000
+      LQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000020000
+      LQ[2]  V=1  R=0  tid=5  ea=000000000000  vval=0  data=0000000000000000  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=1  tail=2
+      SQ[0]  V=0  R=1  tid=2  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=1  pa_idx=000000020000
+      SQ[1]  V=1  R=0  tid=4  ea=000000000000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=2  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=2  tail=3
+      LQ[0]  V=0  R=1  tid=1  ea=0000aaaa1000  vval=1  data=deadcafedeadcafe  sq_tail=0  lq_tail=0  pa_idx=000011111000
+      LQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000020000
+      LQ[2]  V=1  R=1  tid=5  ea=000000003000  vval=1  data=1111111111111111  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=2  tail=2
+      SQ[0]  V=0  R=1  tid=2  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=1  pa_idx=000000020000
+      SQ[1]  V=0  R=1  tid=4  ea=000000003000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=2  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+  PASS [LQ tid=5 vvalid]  val=1
+  PASS [LQ tid=5 data]  val=0x1111111111111111
+----------------------------------------------------------------
+
+TC4: WAW — older store suppressed, own data preserved
+[LQ] head=3  tail=3
+      LQ[0]  V=0  R=1  tid=1  ea=0000aaaa1000  vval=1  data=deadcafedeadcafe  sq_tail=0  lq_tail=0  pa_idx=000011111000
+      LQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000020000
+      LQ[2]  V=0  R=1  tid=5  ea=000000003000  vval=0  data=1111111111111111  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=4  tail=4
+      SQ[0]  V=0  R=1  tid=2  ea=000000002000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=1  pa_idx=000000020000
+      SQ[1]  V=0  R=1  tid=4  ea=000000003000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=2  pa_idx=000000030000
+      SQ[2]  V=0  R=1  tid=6  ea=000000004000  vval=1  data=aaaaaaaaaaaaaaaa  sq_tail=0  lq_tail=3  pa_idx=000000000000
+      SQ[3]  V=0  R=1  tid=7  ea=000000004000  vval=1  data=bbbbbbbbbbbbbbbb  sq_tail=0  lq_tail=3  pa_idx=000000040000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+  PASS [SQ tid=6 vvalid]  val=1
+  PASS [SQ tid=6 data]  val=0xaaaaaaaaaaaaaaaa
+----------------------------------------------------------------
+
+TC5: WAR — hazard mask invalidates younger loads
+[LQ] head=1  tail=2
+      LQ[0]  V=0  R=1  tid=9  ea=000000005000  vval=1  data=0000000000000000  sq_tail=1  lq_tail=0  pa_idx=000000050000
+      LQ[1]  V=1  R=1  tid=a  ea=000000005000  vval=0  data=0000000000000000  sq_tail=1  lq_tail=0  pa_idx=000000050000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=0  tail=1
+      SQ[0]  V=1  R=0  tid=8  ea=000000000000  vval=1  data=deadbeefdeadbeef  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+  PASS [TC5a hazard mask nonzero]  val=1
+  PASS [TC5b LQ slot 1 flagged]  val=1
+  PASS [TC5c LQ slot 0 not flagged (known off-by-one in LQ_tail snap)]  val=0
+----------------------------------------------------------------
+
+TC6: dTLB page-offset preserved across same-page loads
+  PASS [LQ tid=b vvalid]  val=1
+  PASS [LQ tid=b data]  val=0xf0f0f0f000000040
+  PASS [LQ tid=c vvalid]  val=1
+  PASS [LQ tid=c data]  val=0xf0f0f0f000000080
+----------------------------------------------------------------
+
+TC7: dTLB re-fill updates existing entry in-place
+  PASS [TC7a only 1 TLB slot used after re-fill]  val=1
+  PASS [LQ tid=d vvalid]  val=1
+  PASS [LQ tid=d data]  val=0xbeefbeefbeefbebc
+----------------------------------------------------------------
+
+TC8: dTLB PLRU eviction — 17th fill evicts exactly one entry
+  PASS [TC8a all 16 dTLB valid bits set after cold fill]  val=1
+  PASS [LQ tid=1 vvalid]  val=1
+  PASS [LQ tid=1 data]  val=0x1717171717171717
+  PASS [TC8b exactly 15 original entries survive eviction]  val=1
+Survivors: 15
+----------------------------------------------------------------
+
+TC9: Reset clears dTLB; system functional after reset
+  PASS [TC9a TLB has entries before reset]  val=1
+  PASS [TC9b all TLB valid bits cleared by reset]  val=0
+  PASS [LQ tid=3 vvalid]  val=1
+  PASS [LQ tid=3 data]  val=0xafafafafafafafaf
+----------------------------------------------------------------
+
+================================================
+26 PASSED   0 FAILED
+ALL TESTS PASSED
+================================================
+
+- top_tb.sv:805: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.044 2026-01-01
+- Verilator: $finish at 3us; walltime 0.001 s; speed 4.999 ms/s
+- Verilator: cpu 0.001 s on 1 threads; alloced 7 MB

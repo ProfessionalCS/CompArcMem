@@ -1,0 +1,477 @@
+IP Upgrade report for DE10_NANO_SoC_GHRD
+Mon Mar  2 13:54:04 2026
+Quartus Prime Version 25.1std.0 Build 1129 10/21/2025 SC Lite Edition
+
+
+---------------------
+; Table of Contents ;
+---------------------
+  1. Legal Notice
+  2. IP Upgrade Summary
+  3. Successfully Upgraded IP Components
+  4. IP Upgrade Messages
+
+
+
+----------------
+; Legal Notice ;
+----------------
+Copyright (C) 2025  Altera Corporation. All rights reserved.
+Your use of Altera Corporation's design tools, logic functions 
+and other software and tools, and any partner logic 
+functions, and any output files from any of the foregoing 
+(including device programming or simulation files), and any 
+associated documentation or information are expressly subject 
+to the terms and conditions of the Altera Program License 
+Subscription Agreement, the Altera Quartus Prime License Agreement,
+the Altera IP License Agreement, or other applicable license
+agreement, including, without limitation, that your use is for
+the sole purpose of programming logic devices manufactured by
+Altera and sold by Altera or its authorized distributors.  Please
+refer to the Altera Software License Subscription Agreements 
+on the Quartus Prime software download page.
+
+
+
++--------------------------------------------------------------------------------+
+; IP Upgrade Summary                                                             ;
++------------------------------+-------------------------------------------------+
+; IP Components Upgrade Status ; Passed - Mon Mar  2 13:54:04 2026               ;
+; Quartus Prime Version        ; 25.1std.0 Build 1129 10/21/2025 SC Lite Edition ;
+; Revision Name                ; DE10_NANO_SoC_GHRD                              ;
+; Top-level Entity Name        ; DE10_NANO_SoC_GHRD                              ;
+; Family                       ; Cyclone V                                       ;
++------------------------------+-------------------------------------------------+
+
+
++-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+; Successfully Upgraded IP Components                                                                                                                                         ;
++-------------+------------------------------+---------+-------------------------------------+--------------------------------+-------------------------------------+---------+
+; Entity Name ; Component Name               ; Version ; Original Source File                ; Generation File Path           ; New Source File                     ; Message ;
++-------------+------------------------------+---------+-------------------------------------+--------------------------------+-------------------------------------+---------+
+; soc_system  ; Qsys                         ; 16.0    ; soc_system/synthesis/soc_system.qip ; soc_system.qsys                ; soc_system/synthesis/soc_system.qip ;         ;
+; hps_reset   ; In-System Sources and Probes ; 16.0    ; ip/altsource_probe/hps_reset.qip    ; ip/altsource_probe/hps_reset.v ; ip/altsource_probe/hps_reset.qip    ;         ;
++-------------+------------------------------+---------+-------------------------------------+--------------------------------+-------------------------------------+---------+
+
+
++---------------------+
+; IP Upgrade Messages ;
++---------------------+
+Info (11902): Backing up file "soc_system.qsys" to "soc_system.BAK.qsys"
+Info (11902): Backing up file "soc_system/synthesis/soc_system.v" to "soc_system.BAK.v"
+Info (11837): Started upgrading IP component Qsys with file "soc_system.qsys"
+Info: Picked up JAVA_TOOL_OPTIONS: -Dsun.java2d.uiScale=1.5
+Info: Picked up _JAVA_OPTIONS: -Dsun.java2d.opengl=false -Dsun.java2d.d3d=false -Dsun.java2d.xrender=false -Dsun.java2d.pmoffscreen=false -Dswing.aatext=false -Dswing.defaultlaf=javax.swing.plaf.metal.MetalLookAndFeel -Dsun.java2d.noddraw=true -Dsun.java2d.uiScale=1.5 -Dsun.java2d.uiScale.enabled=true
+Info: 2026.03.02.13:52:02 Info: Starting to upgrade the IP cores in the Platform Designer system
+Info: 2026.03.02.13:52:02 Info: Finished upgrading the ip cores
+Info: Picked up JAVA_TOOL_OPTIONS: -Dsun.java2d.uiScale=1.5
+Info: Picked up _JAVA_OPTIONS: -Dsun.java2d.opengl=false -Dsun.java2d.d3d=false -Dsun.java2d.xrender=false -Dsun.java2d.pmoffscreen=false -Dswing.aatext=false -Dswing.defaultlaf=javax.swing.plaf.metal.MetalLookAndFeel -Dsun.java2d.noddraw=true -Dsun.java2d.uiScale=1.5 -Dsun.java2d.uiScale.enabled=true
+Info: 2026.03.02.13:52:12 Info: Saving generation log to /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system
+Info: 2026.03.02.13:52:12 Info: Starting: Create simulation model
+Info: 2026.03.02.13:52:12 Info: Loading DE10_NANO_SoC_GHRD
+Info: 2026.03.02.13:52:12 Info: Reading input file
+Info: 2026.03.02.13:52:12 Info: Adding ILC [interrupt_latency_counter 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module ILC
+Info: 2026.03.02.13:52:12 Info: Adding button_pio [altera_avalon_pio 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module button_pio
+Info: 2026.03.02.13:52:12 Info: Adding clk_0 [clock_source 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module clk_0
+Info: 2026.03.02.13:52:12 Info: Adding dipsw_pio [altera_avalon_pio 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module dipsw_pio
+Info: 2026.03.02.13:52:12 Info: Adding f2sdram_only_master [altera_jtag_avalon_master 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module f2sdram_only_master
+Info: 2026.03.02.13:52:12 Info: Adding fpga_only_master [altera_jtag_avalon_master 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module fpga_only_master
+Info: 2026.03.02.13:52:12 Info: Adding hps_0 [altera_hps 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module hps_0
+Info: 2026.03.02.13:52:12 Info: Adding hps_only_master [altera_jtag_avalon_master 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module hps_only_master
+Info: 2026.03.02.13:52:12 Info: Adding jtag_uart [altera_avalon_jtag_uart 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module jtag_uart
+Info: 2026.03.02.13:52:12 Info: Adding led_pio [altera_avalon_pio 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module led_pio
+Info: 2026.03.02.13:52:12 Info: Adding mm_bridge_0 [altera_avalon_mm_bridge 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module mm_bridge_0
+Info: 2026.03.02.13:52:12 Info: Adding sysid_qsys [altera_avalon_sysid_qsys 25.1]
+Info: 2026.03.02.13:52:12 Info: Parameterizing module sysid_qsys
+Info: 2026.03.02.13:52:12 Info: Building connections
+Info: 2026.03.02.13:52:12 Info: Parameterizing connections
+Info: 2026.03.02.13:52:12 Info: Validating
+Info: 2026.03.02.13:52:15 Info: Done reading input file
+Info: 2026.03.02.13:52:16 Info: soc_system.button_pio: PIO inputs are not hardwired in test bench. Undefined values will be read from PIO inputs during simulation.
+Info: 2026.03.02.13:52:16 Info: soc_system.dipsw_pio: PIO inputs are not hardwired in test bench. Undefined values will be read from PIO inputs during simulation.
+Info: 2026.03.02.13:52:16 Info: soc_system.hps_0: HPS Main PLL counter settings: n = 0  m = 63
+Info: 2026.03.02.13:52:16 Info: soc_system.hps_0: HPS peripherial PLL counter settings: n = 0  m = 39
+Warning: 2026.03.02.13:52:16 Warning: soc_system.hps_0: HPS model no longer supports simulation for HPS FPGA Bridges.
+Info: 2026.03.02.13:52:16 Info: soc_system.jtag_uart: JTAG UART IP input clock need to be at least double (2x) the operating frequency of JTAG TCK on board
+Info: 2026.03.02.13:52:16 Info: soc_system.sysid_qsys: System ID is not assigned automatically. Edit the System ID parameter to provide a unique ID
+Info: 2026.03.02.13:52:16 Info: soc_system.sysid_qsys: Time stamp will be automatically updated when this component is generated.
+Info: 2026.03.02.13:52:17 Info: soc_system: Generating "soc_system" for SIM_VERILOG
+Info: 2026.03.02.13:52:18 Info: Interconnect is inserted between master hps_0.h2f_lw_axi_master and slave mm_bridge_0.s0 because the master is of type axi and the slave is of type avalon.
+Info: 2026.03.02.13:52:19 Info: Interconnect is inserted between master hps_only_master.master and slave hps_0.f2h_axi_slave because the master is of type avalon and the slave is of type axi.
+Info: 2026.03.02.13:52:19 Info: Interconnect is inserted between master f2sdram_only_master.master and slave hps_0.f2h_sdram0_data because the master has address signal 32 bit wide, but the slave is 27 bit wide.
+Info: 2026.03.02.13:52:19 Info: Interconnect is inserted between master f2sdram_only_master.master and slave hps_0.f2h_sdram0_data because the master has readdata signal 32 bit wide, but the slave is 256 bit wide.
+Info: 2026.03.02.13:52:19 Info: Interconnect is inserted between master f2sdram_only_master.master and slave hps_0.f2h_sdram0_data because the master has writedata signal 32 bit wide, but the slave is 256 bit wide.
+Info: 2026.03.02.13:52:19 Info: Interconnect is inserted between master f2sdram_only_master.master and slave hps_0.f2h_sdram0_data because the master has byteenable signal 4 bit wide, but the slave is 32 bit wide.
+Warning: 2026.03.02.13:52:20 Warning: hps_0.f2h_irq0: Cannot connect clock for irq_mapper_001.sender
+Warning: 2026.03.02.13:52:20 Warning: hps_0.f2h_irq0: Cannot connect reset for irq_mapper_001.sender
+Warning: 2026.03.02.13:52:20 Warning: hps_0.f2h_irq1: Cannot connect clock for irq_mapper_002.sender
+Warning: 2026.03.02.13:52:20 Warning: hps_0.f2h_irq1: Cannot connect reset for irq_mapper_002.sender
+Info: 2026.03.02.13:52:21 Info: ILC: "soc_system" instantiated interrupt_latency_counter "ILC"
+Info: 2026.03.02.13:52:21 Info: button_pio: Starting RTL generation for module 'soc_system_button_pio'
+Info: 2026.03.02.13:52:21 Info: button_pio:   Generation command is [exec /home/quartus/altera/25.1std/quartus/linux64/perl/bin/perl -I /home/quartus/altera/25.1std/quartus/linux64/perl/lib -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin/europa -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/common -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio -- /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio/generate_rtl.pl --name=soc_system_button_pio --dir=/tmp/alt0514_4536702690222846352.dir/0003_button_pio_gen/ --quartus_dir=/home/quartus/altera/25.1std/quartus --verilog --config=/tmp/alt0514_4536702690222846352.dir/0003_button_pio_gen//soc_system_button_pio_component_configuration.pl  --do_build_sim=1    --sim_dir=/tmp/alt0514_4536702690222846352.dir/0003_button_pio_gen
+Info: 2026.03.02.13:52:21 Info: button_pio: Done RTL generation for module 'soc_system_button_pio'
+Info: 2026.03.02.13:52:21 Info: button_pio: "soc_system" instantiated altera_avalon_pio "button_pio"
+Info: 2026.03.02.13:52:21 Info: dipsw_pio: Starting RTL generation for module 'soc_system_dipsw_pio'
+Info: 2026.03.02.13:52:21 Info: dipsw_pio:   Generation command is [exec /home/quartus/altera/25.1std/quartus/linux64/perl/bin/perl -I /home/quartus/altera/25.1std/quartus/linux64/perl/lib -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin/europa -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/common -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio -- /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio/generate_rtl.pl --name=soc_system_dipsw_pio --dir=/tmp/alt0514_4536702690222846352.dir/0004_dipsw_pio_gen/ --quartus_dir=/home/quartus/altera/25.1std/quartus --verilog --config=/tmp/alt0514_4536702690222846352.dir/0004_dipsw_pio_gen//soc_system_dipsw_pio_component_configuration.pl  --do_build_sim=1    --sim_dir=/tmp/alt0514_4536702690222846352.dir/0004_dipsw_pio_gen
+Info: 2026.03.02.13:52:21 Info: dipsw_pio: Done RTL generation for module 'soc_system_dipsw_pio'
+Info: 2026.03.02.13:52:21 Info: dipsw_pio: "soc_system" instantiated altera_avalon_pio "dipsw_pio"
+Info: 2026.03.02.13:52:21 Info: f2sdram_only_master: "soc_system" instantiated altera_jtag_avalon_master "f2sdram_only_master"
+Info: 2026.03.02.13:52:21 Info: hps_0: "Running  for module: hps_0"
+Info: 2026.03.02.13:52:22 Info: hps_0: HPS Main PLL counter settings: n = 0  m = 63
+Info: 2026.03.02.13:52:22 Info: hps_0: HPS peripherial PLL counter settings: n = 0  m = 39
+Warning: 2026.03.02.13:52:22 Warning: hps_0: HPS model no longer supports simulation for HPS FPGA Bridges.
+Info: 2026.03.02.13:52:23 Info: hps_0: "soc_system" instantiated altera_hps "hps_0"
+Info: 2026.03.02.13:52:23 Info: jtag_uart: "soc_system" instantiated altera_avalon_jtag_uart "jtag_uart"
+Info: 2026.03.02.13:52:23 Info: led_pio: Starting RTL generation for module 'soc_system_led_pio'
+Info: 2026.03.02.13:52:23 Info: led_pio:   Generation command is [exec /home/quartus/altera/25.1std/quartus/linux64/perl/bin/perl -I /home/quartus/altera/25.1std/quartus/linux64/perl/lib -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin/europa -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/common -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio -- /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio/generate_rtl.pl --name=soc_system_led_pio --dir=/tmp/alt0514_4536702690222846352.dir/0006_led_pio_gen/ --quartus_dir=/home/quartus/altera/25.1std/quartus --verilog --config=/tmp/alt0514_4536702690222846352.dir/0006_led_pio_gen//soc_system_led_pio_component_configuration.pl  --do_build_sim=1    --sim_dir=/tmp/alt0514_4536702690222846352.dir/0006_led_pio_gen
+Info: 2026.03.02.13:52:23 Info: led_pio: Done RTL generation for module 'soc_system_led_pio'
+Info: 2026.03.02.13:52:23 Info: led_pio: "soc_system" instantiated altera_avalon_pio "led_pio"
+Info: 2026.03.02.13:52:23 Info: mm_bridge_0: "soc_system" instantiated altera_avalon_mm_bridge "mm_bridge_0"
+Info: 2026.03.02.13:52:23 Info: sysid_qsys: "soc_system" instantiated altera_avalon_sysid_qsys "sysid_qsys"
+Info: 2026.03.02.13:52:23 Info: avalon_st_adapter: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:52:23 Info: mm_interconnect_0: "soc_system" instantiated altera_mm_interconnect "mm_interconnect_0"
+Info: 2026.03.02.13:52:23 Info: avalon_st_adapter: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:52:23 Info: avalon_st_adapter_001: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:52:23 Info: avalon_st_adapter_002: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:52:23 Info: avalon_st_adapter_003: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:52:23 Info: avalon_st_adapter_004: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:52:23 Info: avalon_st_adapter_005: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:52:24 Info: mm_interconnect_1: "soc_system" instantiated altera_mm_interconnect "mm_interconnect_1"
+Info: 2026.03.02.13:52:24 Info: mm_interconnect_2: "soc_system" instantiated altera_mm_interconnect "mm_interconnect_2"
+Info: 2026.03.02.13:52:24 Info: avalon_st_adapter: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:52:24 Info: mm_interconnect_3: "soc_system" instantiated altera_mm_interconnect "mm_interconnect_3"
+Info: 2026.03.02.13:52:24 Info: irq_mapper: "soc_system" instantiated altera_irq_mapper "irq_mapper"
+Info: 2026.03.02.13:52:24 Info: irq_mapper_001: "soc_system" instantiated altera_irq_mapper "irq_mapper_001"
+Info: 2026.03.02.13:52:24 Info: irq_mapper_002: "soc_system" instantiated altera_irq_mapper "irq_mapper_002"
+Info: 2026.03.02.13:52:24 Info: rst_controller: "soc_system" instantiated altera_reset_controller "rst_controller"
+Info: 2026.03.02.13:52:24 Info: jtag_phy_embedded_in_jtag_master: "f2sdram_only_master" instantiated altera_jtag_dc_streaming "jtag_phy_embedded_in_jtag_master"
+Info: 2026.03.02.13:52:24 Info: timing_adt: "f2sdram_only_master" instantiated timing_adapter "timing_adt"
+Info: 2026.03.02.13:52:24 Info: fifo: "f2sdram_only_master" instantiated altera_avalon_sc_fifo "fifo"
+Info: 2026.03.02.13:52:24 Info: b2p: "f2sdram_only_master" instantiated altera_avalon_st_bytes_to_packets "b2p"
+Info: 2026.03.02.13:52:24 Info: p2b: "f2sdram_only_master" instantiated altera_avalon_st_packets_to_bytes "p2b"
+Info: 2026.03.02.13:52:24 Info: transacto: "f2sdram_only_master" instantiated altera_avalon_packets_to_master "transacto"
+Info: 2026.03.02.13:52:24 Info: b2p_adapter: "f2sdram_only_master" instantiated channel_adapter "b2p_adapter"
+Info: 2026.03.02.13:52:24 Info: p2b_adapter: "f2sdram_only_master" instantiated channel_adapter "p2b_adapter"
+Info: 2026.03.02.13:52:38 Info: fpga_interfaces: "hps_0" instantiated altera_interface_generator "fpga_interfaces"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: hps_io: "hps_0" instantiated altera_hps_io "hps_io"
+Info: 2026.03.02.13:52:38 Info: mm_bridge_0_s0_translator: "mm_interconnect_0" instantiated altera_merlin_slave_translator "mm_bridge_0_s0_translator"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: hps_0_h2f_lw_axi_master_agent: "mm_interconnect_0" instantiated altera_merlin_axi_master_ni "hps_0_h2f_lw_axi_master_agent"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: mm_bridge_0_s0_agent: "mm_interconnect_0" instantiated altera_merlin_slave_agent "mm_bridge_0_s0_agent"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: router: "mm_interconnect_0" instantiated altera_merlin_router "router"
+Info: 2026.03.02.13:52:38 Info: router_002: "mm_interconnect_0" instantiated altera_merlin_router "router_002"
+Info: 2026.03.02.13:52:38 Info: mm_bridge_0_s0_burst_adapter: "mm_interconnect_0" instantiated altera_merlin_burst_adapter "mm_bridge_0_s0_burst_adapter"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: cmd_demux: "mm_interconnect_0" instantiated altera_merlin_demultiplexer "cmd_demux"
+Info: 2026.03.02.13:52:38 Info: cmd_mux: "mm_interconnect_0" instantiated altera_merlin_multiplexer "cmd_mux"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: rsp_demux: "mm_interconnect_0" instantiated altera_merlin_demultiplexer "rsp_demux"
+Info: 2026.03.02.13:52:38 Info: rsp_mux: "mm_interconnect_0" instantiated altera_merlin_multiplexer "rsp_mux"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: avalon_st_adapter: "mm_interconnect_0" instantiated altera_avalon_st_adapter "avalon_st_adapter"
+Info: 2026.03.02.13:52:38 Info: mm_bridge_0_m0_translator: "mm_interconnect_1" instantiated altera_merlin_master_translator "mm_bridge_0_m0_translator"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: mm_bridge_0_m0_agent: "mm_interconnect_1" instantiated altera_merlin_master_agent "mm_bridge_0_m0_agent"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: router: "mm_interconnect_1" instantiated altera_merlin_router "router"
+Info: 2026.03.02.13:52:38 Info: router_002: "mm_interconnect_1" instantiated altera_merlin_router "router_002"
+Info: 2026.03.02.13:52:38 Info: mm_bridge_0_m0_limiter: "mm_interconnect_1" instantiated altera_merlin_traffic_limiter "mm_bridge_0_m0_limiter"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: cmd_demux: "mm_interconnect_1" instantiated altera_merlin_demultiplexer "cmd_demux"
+Info: 2026.03.02.13:52:38 Info: cmd_mux: "mm_interconnect_1" instantiated altera_merlin_multiplexer "cmd_mux"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: rsp_demux: "mm_interconnect_1" instantiated altera_merlin_demultiplexer "rsp_demux"
+Info: 2026.03.02.13:52:38 Info: rsp_mux: "mm_interconnect_1" instantiated altera_merlin_multiplexer "rsp_mux"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: hps_0_f2h_axi_slave_agent: "mm_interconnect_2" instantiated altera_merlin_axi_slave_ni "hps_0_f2h_axi_slave_agent"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: router: "mm_interconnect_2" instantiated altera_merlin_router "router"
+Info: 2026.03.02.13:52:38 Info: router_001: "mm_interconnect_2" instantiated altera_merlin_router "router_001"
+Info: 2026.03.02.13:52:38 Info: cmd_demux: "mm_interconnect_2" instantiated altera_merlin_demultiplexer "cmd_demux"
+Info: 2026.03.02.13:52:38 Info: cmd_mux: "mm_interconnect_2" instantiated altera_merlin_multiplexer "cmd_mux"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: rsp_demux: "mm_interconnect_2" instantiated altera_merlin_demultiplexer "rsp_demux"
+Info: 2026.03.02.13:52:38 Info: rsp_mux: "mm_interconnect_2" instantiated altera_merlin_multiplexer "rsp_mux"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: hps_0_f2h_axi_slave_wr_cmd_width_adapter: "mm_interconnect_2" instantiated altera_merlin_width_adapter "hps_0_f2h_axi_slave_wr_cmd_width_adapter"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: router: "mm_interconnect_3" instantiated altera_merlin_router "router"
+Info: 2026.03.02.13:52:38 Info: router_001: "mm_interconnect_3" instantiated altera_merlin_router "router_001"
+Info: 2026.03.02.13:52:38 Info: cmd_demux: "mm_interconnect_3" instantiated altera_merlin_demultiplexer "cmd_demux"
+Info: 2026.03.02.13:52:38 Info: cmd_mux: "mm_interconnect_3" instantiated altera_merlin_multiplexer "cmd_mux"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: rsp_mux: "mm_interconnect_3" instantiated altera_merlin_multiplexer "rsp_mux"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: avalon_st_adapter: "mm_interconnect_3" instantiated altera_avalon_st_adapter "avalon_st_adapter"
+Info: 2026.03.02.13:52:38 Info: border: "hps_io" instantiated altera_interface_generator "border"
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation/submodules
+Info: 2026.03.02.13:52:38 Info: error_adapter_0: "avalon_st_adapter" instantiated error_adapter "error_adapter_0"
+Info: 2026.03.02.13:52:38 Info: error_adapter_0: "avalon_st_adapter" instantiated error_adapter "error_adapter_0"
+Info: 2026.03.02.13:52:38 Info: soc_system: Done "soc_system" with 65 modules, 195 files
+Info: 2026.03.02.13:52:38 Info: qsys-generate succeeded.
+Info: 2026.03.02.13:52:38 Info: Finished: Create simulation model
+Info: 2026.03.02.13:52:38 Info: Starting: Create Modelsim Project.
+Info: 2026.03.02.13:52:38 Info: sim-script-gen --spd=/home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/soc_system.spd --output-directory=/home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation
+Info: 2026.03.02.13:52:38 Info: Doing: ip-make-simscript --spd=/home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/soc_system.spd --output-directory=/home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation
+Info: 2026.03.02.13:52:39 Info: Generating the following file(s) for XCELIUM simulator in /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation
+Info: 2026.03.02.13:52:39 Info:     xcelium
+Info: 2026.03.02.13:52:39 Info:     xcelium
+Info: 2026.03.02.13:52:39 Info:     xcelium
+Info: 2026.03.02.13:52:39 Info:     47 .cds.lib files in xcelium/cds_libs
+Info: 2026.03.02.13:52:39 Info: Generating the following file(s) for MODELSIM simulator in /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation
+Info: 2026.03.02.13:52:39 Info:     mentor
+Info: 2026.03.02.13:52:39 Info: Generating the following file(s) for RIVIERA simulator in /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation
+Info: 2026.03.02.13:52:39 Info:     aldec
+Info: 2026.03.02.13:52:39 Info: Generating the following file(s) for VCS simulator in /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation
+Info: 2026.03.02.13:52:39 Info:     synopsys/vcs
+Info: 2026.03.02.13:52:39 Info: Generating the following file(s) for VCSMX simulator in /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation
+Info: 2026.03.02.13:52:39 Info:     synopsys/vcsmx
+Info: 2026.03.02.13:52:39 Info:     synopsys/vcsmx
+Info: 2026.03.02.13:52:39 Info: For information on how to simulate your IP, see the explanatory comments in the simulator-specific subdirectories under /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/simulation
+Info: 2026.03.02.13:52:39 Info: Regenerate these scripts whenever you make any change to any Quartus-generated IP in your project.
+Info: 2026.03.02.13:52:39 Info: Finished: Create Modelsim Project.
+Info: 2026.03.02.13:52:39 Info: Starting: Create block symbol file (.bsf)
+Info: 2026.03.02.13:52:39 Info: Loading DE10_NANO_SoC_GHRD
+Info: 2026.03.02.13:52:39 Info: Reading input file
+Info: 2026.03.02.13:52:39 Info: Adding ILC [interrupt_latency_counter 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module ILC
+Info: 2026.03.02.13:52:39 Info: Adding button_pio [altera_avalon_pio 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module button_pio
+Info: 2026.03.02.13:52:39 Info: Adding clk_0 [clock_source 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module clk_0
+Info: 2026.03.02.13:52:39 Info: Adding dipsw_pio [altera_avalon_pio 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module dipsw_pio
+Info: 2026.03.02.13:52:39 Info: Adding f2sdram_only_master [altera_jtag_avalon_master 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module f2sdram_only_master
+Info: 2026.03.02.13:52:39 Info: Adding fpga_only_master [altera_jtag_avalon_master 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module fpga_only_master
+Info: 2026.03.02.13:52:39 Info: Adding hps_0 [altera_hps 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module hps_0
+Info: 2026.03.02.13:52:39 Info: Adding hps_only_master [altera_jtag_avalon_master 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module hps_only_master
+Info: 2026.03.02.13:52:39 Info: Adding jtag_uart [altera_avalon_jtag_uart 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module jtag_uart
+Info: 2026.03.02.13:52:39 Info: Adding led_pio [altera_avalon_pio 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module led_pio
+Info: 2026.03.02.13:52:39 Info: Adding mm_bridge_0 [altera_avalon_mm_bridge 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module mm_bridge_0
+Info: 2026.03.02.13:52:39 Info: Adding sysid_qsys [altera_avalon_sysid_qsys 25.1]
+Info: 2026.03.02.13:52:39 Info: Parameterizing module sysid_qsys
+Info: 2026.03.02.13:52:39 Info: Building connections
+Info: 2026.03.02.13:52:39 Info: Parameterizing connections
+Info: 2026.03.02.13:52:39 Info: Validating
+Info: 2026.03.02.13:52:42 Info: Done reading input file
+Info: 2026.03.02.13:52:43 Info: soc_system.button_pio: PIO inputs are not hardwired in test bench. Undefined values will be read from PIO inputs during simulation.
+Warning: 2026.03.02.13:52:43 Info: soc_system.dipsw_pio: PIO inputs are not hardwired in test bench. Undefined values will be read from PIO inputs during simulation.
+2026.03.02.13:52:43 Info: soc_system.hps_0: HPS Main PLL counter settings: n = 0  m = 63
+2026.03.02.13:52:43 Info: soc_system.hps_0: HPS peripherial PLL counter settings: n = 0  m = 39
+2026.03.02.13:52:43 Warning: soc_system.hps_0: HPS model no longer supports simulation for HPS FPGA Bridges.
+Info: 2026.03.02.13:52:43 Info: soc_system.jtag_uart: JTAG UART IP input clock need to be at least double (2x) the operating frequency of JTAG TCK on board
+Info: 2026.03.02.13:52:43 Info: soc_system.sysid_qsys: System ID is not assigned automatically. Edit the System ID parameter to provide a unique ID
+2026.03.02.13:52:43 Info: soc_system.sysid_qsys: Time stamp will be automatically updated when this component is generated.
+Info: 2026.03.02.13:52:43 Info: qsys-generate succeeded.
+Info: 2026.03.02.13:52:43 Info: Finished: Create block symbol file (.bsf)
+2026.03.02.13:52:43 Info:
+Info: 2026.03.02.13:52:43 Info: Starting: Create HDL design files for synthesis
+Info: 2026.03.02.13:52:43 Info: Loading DE10_NANO_SoC_GHRD
+Info: 2026.03.02.13:52:43 Info: Reading input file
+Info: 2026.03.02.13:52:43 Info: Adding ILC [interrupt_latency_counter 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module ILC
+Info: 2026.03.02.13:52:43 Info: Adding button_pio [altera_avalon_pio 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module button_pio
+Info: 2026.03.02.13:52:43 Info: Adding clk_0 [clock_source 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module clk_0
+Info: 2026.03.02.13:52:43 Info: Adding dipsw_pio [altera_avalon_pio 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module dipsw_pio
+Info: 2026.03.02.13:52:43 Info: Adding f2sdram_only_master [altera_jtag_avalon_master 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module f2sdram_only_master
+Info: 2026.03.02.13:52:43 Info: Adding fpga_only_master [altera_jtag_avalon_master 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module fpga_only_master
+Info: 2026.03.02.13:52:43 Info: Adding hps_0 [altera_hps 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module hps_0
+Info: 2026.03.02.13:52:43 Info: Adding hps_only_master [altera_jtag_avalon_master 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module hps_only_master
+Info: 2026.03.02.13:52:43 Info: Adding jtag_uart [altera_avalon_jtag_uart 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module jtag_uart
+Info: 2026.03.02.13:52:43 Info: Adding led_pio [altera_avalon_pio 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module led_pio
+Info: 2026.03.02.13:52:43 Info: Adding mm_bridge_0 [altera_avalon_mm_bridge 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module mm_bridge_0
+Info: 2026.03.02.13:52:43 Info: Adding sysid_qsys [altera_avalon_sysid_qsys 25.1]
+Info: 2026.03.02.13:52:43 Info: Parameterizing module sysid_qsys
+Info: 2026.03.02.13:52:43 Info: Building connections
+Info: 2026.03.02.13:52:43 Info: Parameterizing connections
+Info: 2026.03.02.13:52:43 Info: Validating
+Info: 2026.03.02.13:52:47 Info: Done reading input file
+Info: 2026.03.02.13:52:48 Info: soc_system.button_pio: PIO inputs are not hardwired in test bench. Undefined values will be read from PIO inputs during simulation.
+Info: 2026.03.02.13:52:48 Info: soc_system.dipsw_pio: PIO inputs are not hardwired in test bench. Undefined values will be read from PIO inputs during simulation.
+2026.03.02.13:52:48 Info: soc_system.hps_0: HPS Main PLL counter settings: n = 0  m = 63
+Info: 2026.03.02.13:52:48 Info: soc_system.hps_0: HPS peripherial PLL counter settings: n = 0  m = 39
+Warning: 2026.03.02.13:52:48 Warning: soc_system.hps_0: HPS model no longer supports simulation for HPS FPGA Bridges.
+Info: 2026.03.02.13:52:48 Info: soc_system.jtag_uart: JTAG UART IP input clock need to be at least double (2x) the operating frequency of JTAG TCK on board
+Info: 2026.03.02.13:52:48 Info: soc_system.sysid_qsys: System ID is not assigned automatically. Edit the System ID parameter to provide a unique ID
+2026.03.02.13:52:48 Info: soc_system.sysid_qsys: Time stamp will be automatically updated when this component is generated.
+Info: 2026.03.02.13:53:44 Info: soc_system: Generating "soc_system" for QUARTUS_SYNTH
+Info: 2026.03.02.13:53:45 Info: Interconnect is inserted between master hps_0.h2f_lw_axi_master and slave mm_bridge_0.s0 because the master is of type axi and the slave is of type avalon.
+Info: 2026.03.02.13:53:45 Info: Interconnect is inserted between master hps_only_master.master and slave hps_0.f2h_axi_slave because the master is of type avalon and the slave is of type axi.
+Info: 2026.03.02.13:53:45 Info: Interconnect is inserted between master f2sdram_only_master.master and slave hps_0.f2h_sdram0_data because the master has address signal 32 bit wide, but the slave is 27 bit wide.
+Info: 2026.03.02.13:53:45 Info: Interconnect is inserted between master f2sdram_only_master.master and slave hps_0.f2h_sdram0_data because the master has readdata signal 32 bit wide, but the slave is 256 bit wide.
+Info: 2026.03.02.13:53:45 Info: Interconnect is inserted between master f2sdram_only_master.master and slave hps_0.f2h_sdram0_data because the master has writedata signal 32 bit wide, but the slave is 256 bit wide.
+Info: 2026.03.02.13:53:45 Info: Interconnect is inserted between master f2sdram_only_master.master and slave hps_0.f2h_sdram0_data because the master has byteenable signal 4 bit wide, but the slave is 32 bit wide.
+Warning: 2026.03.02.13:53:45 Warning: hps_0.f2h_irq0: Cannot connect clock for irq_mapper_001.sender
+Warning: 2026.03.02.13:53:45 Warning: hps_0.f2h_irq0: Cannot connect reset for irq_mapper_001.sender
+Warning: 2026.03.02.13:53:45 Warning: hps_0.f2h_irq1: Cannot connect clock for irq_mapper_002.sender
+Warning: 2026.03.02.13:53:45 Warning: hps_0.f2h_irq1: Cannot connect reset for irq_mapper_002.sender
+Info: 2026.03.02.13:53:47 Info: ILC: "soc_system" instantiated interrupt_latency_counter "ILC"
+Info: 2026.03.02.13:53:47 Info: button_pio: Starting RTL generation for module 'soc_system_button_pio'
+Info: 2026.03.02.13:53:47 Info: button_pio:   Generation command is [exec /home/quartus/altera/25.1std/quartus/linux64/perl/bin/perl -I /home/quartus/altera/25.1std/quartus/linux64/perl/lib -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin/europa -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/common -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio -- /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio/generate_rtl.pl --name=soc_system_button_pio --dir=/tmp/alt0514_4536702690222846352.dir/0059_button_pio_gen/ --quartus_dir=/home/quartus/altera/25.1std/quartus --verilog --config=/tmp/alt0514_4536702690222846352.dir/0059_button_pio_gen/
+Info: 2026.03.02.13:53:47 Info: button_pio: Done RTL generation for module 'soc_system_button_pio'
+Info: 2026.03.02.13:53:47 Info: button_pio: "soc_system" instantiated altera_avalon_pio "button_pio"
+Info: 2026.03.02.13:53:47 Info: dipsw_pio: Starting RTL generation for module 'soc_system_dipsw_pio'
+Info: 2026.03.02.13:53:47 Info: dipsw_pio:   Generation command is [exec /home/quartus/altera/25.1std/quartus/linux64/perl/bin/perl -I /home/quartus/altera/25.1std/quartus/linux64/perl/lib -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin/europa -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/common -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio -- /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio/generate_rtl.pl --name=soc_system_dipsw_pio --dir=/tmp/alt0514_4536702690222846352.dir/0060_dipsw_pio_gen/ --quartus_dir=/home/quartus/altera/25.1std/quartus --verilog --config=/tmp/alt0514_4536702690222846352.dir/0060_dipsw_pio_gen/
+Info: 2026.03.02.13:53:47 Info: dipsw_pio: Done RTL generation for module 'soc_system_dipsw_pio'
+Info: 2026.03.02.13:53:47 Info: dipsw_pio: "soc_system" instantiated altera_avalon_pio "dipsw_pio"
+Info: 2026.03.02.13:53:47 Info: f2sdram_only_master: "soc_system" instantiated altera_jtag_avalon_master "f2sdram_only_master"
+Info: 2026.03.02.13:53:47 Info: hps_0: "Running  for module: hps_0"
+Info: 2026.03.02.13:53:47 Info: hps_0: HPS Main PLL counter settings: n = 0  m = 63
+Info: 2026.03.02.13:53:48 Info: hps_0: HPS peripherial PLL counter settings: n = 0  m = 39
+Warning: 2026.03.02.13:53:48 Warning: hps_0: HPS model no longer supports simulation for HPS FPGA Bridges.
+Info: 2026.03.02.13:53:48 Info: hps_0: "soc_system" instantiated altera_hps "hps_0"
+Info: 2026.03.02.13:53:48 Info: jtag_uart: "soc_system" instantiated altera_avalon_jtag_uart "jtag_uart"
+Info: 2026.03.02.13:53:48 Info: led_pio: Starting RTL generation for module 'soc_system_led_pio'
+Info: 2026.03.02.13:53:48 Info: led_pio:   Generation command is [exec /home/quartus/altera/25.1std/quartus/linux64/perl/bin/perl -I /home/quartus/altera/25.1std/quartus/linux64/perl/lib -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin/europa -I /home/quartus/altera/25.1std/quartus/sopc_builder/bin -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/common -I /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio -- /home/quartus/altera/25.1std/quartus/../ip/altera/sopc_builder_ip/altera_avalon_pio/generate_rtl.pl --name=soc_system_led_pio --dir=/tmp/alt0514_4536702690222846352.dir/0062_led_pio_gen/ --quartus_dir=/home/quartus/altera/25.1std/quartus --verilog --config=/tmp/alt0514_4536702690222846352.dir/0062_led_pio_gen/
+Info: 2026.03.02.13:53:48 Info: led_pio: Done RTL generation for module 'soc_system_led_pio'
+Info: 2026.03.02.13:53:48 Info: led_pio: "soc_system" instantiated altera_avalon_pio "led_pio"
+Info: 2026.03.02.13:53:48 Info: mm_bridge_0: "soc_system" instantiated altera_avalon_mm_bridge "mm_bridge_0"
+Info: 2026.03.02.13:53:48 Info: sysid_qsys: "soc_system" instantiated altera_avalon_sysid_qsys "sysid_qsys"
+Info: 2026.03.02.13:53:48 Info: avalon_st_adapter: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:53:48 Info: mm_interconnect_0: "soc_system" instantiated altera_mm_interconnect "mm_interconnect_0"
+Info: 2026.03.02.13:53:48 Info: avalon_st_adapter: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:53:49 Info: avalon_st_adapter_001: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:53:49 Info: avalon_st_adapter_002: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:53:49 Info: avalon_st_adapter_003: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:53:49 Info: avalon_st_adapter_004: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:53:49 Info: avalon_st_adapter_005: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:53:49 Info: mm_interconnect_1: "soc_system" instantiated altera_mm_interconnect "mm_interconnect_1"
+Info: 2026.03.02.13:53:49 Info: mm_interconnect_2: "soc_system" instantiated altera_mm_interconnect "mm_interconnect_2"
+Info: 2026.03.02.13:53:49 Info: avalon_st_adapter: Inserting error_adapter: error_adapter_0
+Info: 2026.03.02.13:53:49 Info: mm_interconnect_3: "soc_system" instantiated altera_mm_interconnect "mm_interconnect_3"
+Info: 2026.03.02.13:53:49 Info: irq_mapper: "soc_system" instantiated altera_irq_mapper "irq_mapper"
+Info: 2026.03.02.13:53:49 Info: irq_mapper_001: "soc_system" instantiated altera_irq_mapper "irq_mapper_001"
+Info: 2026.03.02.13:53:49 Info: irq_mapper_002: "soc_system" instantiated altera_irq_mapper "irq_mapper_002"
+Info: 2026.03.02.13:53:49 Info: rst_controller: "soc_system" instantiated altera_reset_controller "rst_controller"
+Info: 2026.03.02.13:53:49 Info: jtag_phy_embedded_in_jtag_master: "f2sdram_only_master" instantiated altera_jtag_dc_streaming "jtag_phy_embedded_in_jtag_master"
+Info: 2026.03.02.13:53:49 Info: timing_adt: "f2sdram_only_master" instantiated timing_adapter "timing_adt"
+Info: 2026.03.02.13:53:49 Info: fifo: "f2sdram_only_master" instantiated altera_avalon_sc_fifo "fifo"
+Info: 2026.03.02.13:53:49 Info: b2p: "f2sdram_only_master" instantiated altera_avalon_st_bytes_to_packets "b2p"
+Info: 2026.03.02.13:53:49 Info: p2b: "f2sdram_only_master" instantiated altera_avalon_st_packets_to_bytes "p2b"
+Info: 2026.03.02.13:53:49 Info: transacto: "f2sdram_only_master" instantiated altera_avalon_packets_to_master "transacto"
+Info: 2026.03.02.13:53:49 Info: b2p_adapter: "f2sdram_only_master" instantiated channel_adapter "b2p_adapter"
+Info: 2026.03.02.13:53:49 Info: p2b_adapter: "f2sdram_only_master" instantiated channel_adapter "p2b_adapter"
+Info: 2026.03.02.13:53:49 Info: fpga_interfaces: "hps_0" instantiated altera_interface_generator "fpga_interfaces"
+Info: 2026.03.02.13:53:49 Info: hps_io: "hps_0" instantiated altera_hps_io "hps_io"
+Info: 2026.03.02.13:53:49 Info: mm_bridge_0_s0_translator: "mm_interconnect_0" instantiated altera_merlin_slave_translator "mm_bridge_0_s0_translator"
+Info: 2026.03.02.13:53:49 Info: hps_0_h2f_lw_axi_master_agent: "mm_interconnect_0" instantiated altera_merlin_axi_master_ni "hps_0_h2f_lw_axi_master_agent"
+Info: 2026.03.02.13:53:49 Info: mm_bridge_0_s0_agent: "mm_interconnect_0" instantiated altera_merlin_slave_agent "mm_bridge_0_s0_agent"
+Info: 2026.03.02.13:53:49 Info: router: "mm_interconnect_0" instantiated altera_merlin_router "router"
+Info: 2026.03.02.13:53:49 Info: router_002: "mm_interconnect_0" instantiated altera_merlin_router "router_002"
+Info: 2026.03.02.13:53:49 Info: mm_bridge_0_s0_burst_adapter: "mm_interconnect_0" instantiated altera_merlin_burst_adapter "mm_bridge_0_s0_burst_adapter"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: cmd_demux: "mm_interconnect_0" instantiated altera_merlin_demultiplexer "cmd_demux"
+Info: 2026.03.02.13:53:49 Info: cmd_mux: "mm_interconnect_0" instantiated altera_merlin_multiplexer "cmd_mux"
+Info: 2026.03.02.13:53:49 Info: rsp_demux: "mm_interconnect_0" instantiated altera_merlin_demultiplexer "rsp_demux"
+Info: 2026.03.02.13:53:49 Info: rsp_mux: "mm_interconnect_0" instantiated altera_merlin_multiplexer "rsp_mux"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: avalon_st_adapter: "mm_interconnect_0" instantiated altera_avalon_st_adapter "avalon_st_adapter"
+Info: 2026.03.02.13:53:49 Info: mm_bridge_0_m0_translator: "mm_interconnect_1" instantiated altera_merlin_master_translator "mm_bridge_0_m0_translator"
+Info: 2026.03.02.13:53:49 Info: mm_bridge_0_m0_agent: "mm_interconnect_1" instantiated altera_merlin_master_agent "mm_bridge_0_m0_agent"
+Info: 2026.03.02.13:53:49 Info: router: "mm_interconnect_1" instantiated altera_merlin_router "router"
+Info: 2026.03.02.13:53:49 Info: router_002: "mm_interconnect_1" instantiated altera_merlin_router "router_002"
+Info: 2026.03.02.13:53:49 Info: mm_bridge_0_m0_limiter: "mm_interconnect_1" instantiated altera_merlin_traffic_limiter "mm_bridge_0_m0_limiter"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: cmd_demux: "mm_interconnect_1" instantiated altera_merlin_demultiplexer "cmd_demux"
+Info: 2026.03.02.13:53:49 Info: cmd_mux: "mm_interconnect_1" instantiated altera_merlin_multiplexer "cmd_mux"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: rsp_demux: "mm_interconnect_1" instantiated altera_merlin_demultiplexer "rsp_demux"
+Info: 2026.03.02.13:53:49 Info: rsp_mux: "mm_interconnect_1" instantiated altera_merlin_multiplexer "rsp_mux"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: hps_0_f2h_axi_slave_agent: "mm_interconnect_2" instantiated altera_merlin_axi_slave_ni "hps_0_f2h_axi_slave_agent"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: router: "mm_interconnect_2" instantiated altera_merlin_router "router"
+Info: 2026.03.02.13:53:49 Info: router_001: "mm_interconnect_2" instantiated altera_merlin_router "router_001"
+Info: 2026.03.02.13:53:49 Info: cmd_demux: "mm_interconnect_2" instantiated altera_merlin_demultiplexer "cmd_demux"
+Info: 2026.03.02.13:53:49 Info: cmd_mux: "mm_interconnect_2" instantiated altera_merlin_multiplexer "cmd_mux"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: rsp_demux: "mm_interconnect_2" instantiated altera_merlin_demultiplexer "rsp_demux"
+Info: 2026.03.02.13:53:49 Info: rsp_mux: "mm_interconnect_2" instantiated altera_merlin_multiplexer "rsp_mux"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: hps_0_f2h_axi_slave_wr_cmd_width_adapter: "mm_interconnect_2" instantiated altera_merlin_width_adapter "hps_0_f2h_axi_slave_wr_cmd_width_adapter"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: router: "mm_interconnect_3" instantiated altera_merlin_router "router"
+Info: 2026.03.02.13:53:49 Info: router_001: "mm_interconnect_3" instantiated altera_merlin_router "router_001"
+Info: 2026.03.02.13:53:49 Info: cmd_demux: "mm_interconnect_3" instantiated altera_merlin_demultiplexer "cmd_demux"
+Info: 2026.03.02.13:53:49 Info: cmd_mux: "mm_interconnect_3" instantiated altera_merlin_multiplexer "cmd_mux"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: rsp_mux: "mm_interconnect_3" instantiated altera_merlin_multiplexer "rsp_mux"
+Info: 2026.03.02.13:53:49 Info: Reusing file /home/quartus/adv_comparch/fptest/proj_v3/DE10_NANO_SoC_GHRD/soc_system/synthesis/submodules
+Info: 2026.03.02.13:53:49 Info: avalon_st_adapter: "mm_interconnect_3" instantiated altera_avalon_st_adapter "avalon_st_adapter"
+Info: 2026.03.02.13:53:58 Info: border: "hps_io" instantiated altera_interface_generator "border"
+Info: 2026.03.02.13:53:58 Info: error_adapter_0: "avalon_st_adapter" instantiated error_adapter "error_adapter_0"
+Info: 2026.03.02.13:53:58 Info: error_adapter_0: "avalon_st_adapter" instantiated error_adapter "error_adapter_0"
+Info: 2026.03.02.13:53:58 Info: soc_system: Done "soc_system" with 65 modules, 138 files
+Info: 2026.03.02.13:53:58 Info: qsys-generate succeeded.
+Info: 2026.03.02.13:53:58 Info: Finished: Create HDL design files for synthesis
+Info (11902): Backing up file "ip/altsource_probe/hps_reset.v" to "ip/altsource_probe/hps_reset.BAK.v"
+Info (11837): Started upgrading IP component In-System Sources and Probes with file "ip/altsource_probe/hps_reset.v"
+Info (11131): Completed upgrading IP component Qsys with file "soc_system.qsys"
+Info (11131): Completed upgrading IP component In-System Sources and Probes with file "ip/altsource_probe/hps_reset.v"
+Info (23030): Evaluation of Tcl script /home/quartus/altera/25.1std/quartus/common/tcl/internal/ip_regen/ip_regen.tcl was successful
+Info: Quartus Prime Shell was successful. 0 errors, 13 warnings
+    Info: Peak virtual memory: 592 megabytes
+    Info: Processing ended: Mon Mar  2 13:54:08 2026
+    Info: Elapsed time: 00:02:27
+    Info: Total CPU time (on all processors): 00:04:36
+
+
