@@ -1,18 +1,18 @@
 `timescale 1ns/1ps
 
 typedef struct packed {
-    logic is_store;
-    logic[63:0] data;
-    logic[7:0] mask;
-    logic[5:0] offset;
+    logic is_store;      // 1 = queued op is a store, 0 = queued op is a load
+    logic[63:0] data;    // Store data to merge into the refill line (ignored for loads)
+    logic[7:0] mask;     // Byte-enable mask for store merge (currently always 8'hFF)
+    logic[5:0] offset;   // Byte offset inside the 64B cache line
 } miss_reg_t;
 
 typedef struct packed {
-    logic valid;
-    logic [23:0] block_addr;
-    logic mem_sent;
-    logic done;
-    logic[1:0] tail;
+    logic valid;             // Entry allocated and active
+    logic [23:0] block_addr; // Line address = req_addr[29:6] for this miss
+    logic mem_sent;          // L2 read request already issued for this entry
+    logic done;              // Refill handled (debug/status flag)
+    logic[1:0] tail;         // Number of queued merged ops (queue write index)
 } mshr_entry_t;
 
 module L1(
@@ -40,14 +40,18 @@ input  logic         l2_resp_valid,           // L2 response ready with cache li
 input  logic [511:0] l2_resp_data             // Full 64-byte cache line from L2
     
 );
+localparam bit L1_VERBOSE = 1'b1;
 // [511:0] data line 64B, [0:1] way and [0:3] set
 logic [511:0]   data_array  [0:1][0:3]; 
 logic [21:0]    tag_array   [0:1][0:3];
 logic           valid_array [0:1][0:3];
 logic           dirty_array [0:1][0:3];
 logic           lru_array   [0:3];
-mshr_entry_t mshr[2];
-miss_reg_t mshr_queue[2][4];  // Separate queue storage per MSHR entry
+mshr_entry_t mshr0, mshr1;         // Two in-flight miss trackers (2-entry MSHR)
+logic           mshrq_is_store [0:1][0:3]; // [mshr_id][slot] op type for merged misses
+logic [63:0]    mshrq_data     [0:1][0:3]; // [mshr_id][slot] store payload
+logic [7:0]     mshrq_mask     [0:1][0:3]; // [mshr_id][slot] byte mask
+logic [5:0]     mshrq_offset   [0:1][0:3]; // [mshr_id][slot] line-local byte offset
 
 
 // Tag comparison assume we got a tag fromt he TLB and are waiting so we can just brab the data
@@ -56,6 +60,7 @@ miss_reg_t mshr_queue[2][4];  // Separate queue storage per MSHR entry
 logic[47:0] grabbedTag;
 
 logic[63:0] grabbedData;
+assign resp_rdata = grabbedData;
 
 
 // We are doing the index nits 
@@ -76,10 +81,10 @@ assign hit_way0 = valid_array[0][index] && (tag_array[0][index] == tag); // this
 assign hit_way1 = valid_array[1][index] && (tag_array[1][index] == tag);
 
 logic hit0, hit1, free0, free1;
-assign hit0 = mshr[0].valid && (mshr[0].block_addr == req_addr[29:6]);
-assign hit1 = mshr[1].valid && (mshr[1].block_addr == req_addr[29:6]);
-assign free0 = !mshr[0].valid;
-assign free1 = !mshr[1].valid;
+assign hit0 = mshr0.valid && (mshr0.block_addr == req_addr[29:6]); // check if the adress is already in the miss queue 
+assign hit1 = mshr1.valid && (mshr1.block_addr == req_addr[29:6]);
+assign free0 = !mshr0.valid;
+assign free1 = !mshr1.valid;
 
 assign lookup_hit_o = hit_way0|hit_way1;
 
@@ -88,7 +93,101 @@ logic tag_match;
 
 // The MSHR we need to get the data and we need to handle the misses maybe we need to add this
 
+// lets talk to this guy
 
+always_ff @(posedge clk) begin: MSHR
+
+    if (!rst_n) begin
+        l2_req_valid <= 1'b0;
+        l2_req_addr  <= '0;
+        mshr0.valid <= 1'b0;
+        mshr0.mem_sent <= 1'b0;
+        mshr0.done <= 1'b0;
+        mshr0.tail <= '0;
+        mshr0.block_addr <= '0;
+        mshr1.valid <= 1'b0;
+        mshr1.mem_sent <= 1'b0;
+        mshr1.done <= 1'b0;
+        mshr1.tail <= '0;
+        mshr1.block_addr <= '0;
+        
+    end else begin
+        // Default: no new request unless we pick an MSHR below.
+        l2_req_valid <= 1'b0;
+
+        // Issue exactly one miss request per cycle (simple fixed priority: 0 then 1).
+        if (!free0 && !mshr0.mem_sent) begin
+            l2_req_valid <= 1'b1;
+            l2_req_addr <= {mshr0.block_addr, 6'b0};
+            mshr0.mem_sent <= 1'b1;
+        end else if (!free1 && !mshr1.mem_sent) begin
+            l2_req_valid <= 1'b1;
+            l2_req_addr <= {mshr1.block_addr, 6'b0};
+            mshr1.mem_sent <= 1'b1;
+        end
+
+        // Consume one returning fill and retire the corresponding in-flight MSHR.
+        if (l2_resp_valid) begin
+            logic [1:0] set_idx;
+            logic [21:0] refill_tag;
+            logic refill_way;
+            logic [511:0] refill_line;
+            logic refill_dirty;
+            if (!free0 && mshr0.mem_sent || !free1 && mshr1.mem_sent) begin 
+                mshr1.done <= 1'b1;
+                mshr1.valid <= 1'b0;
+                mshr1.mem_sent <= 1'b0;
+                mshr1.tail <= '0;
+            end
+            if (!free0 && mshr0.mem_sent) begin
+               
+                set_idx = mshr0.block_addr[1:0];
+                refill_tag = mshr0.block_addr[23:2];
+                refill_way = lru_array[set_idx];
+                refill_line = l2_resp_data;
+                refill_dirty = 1'b0;
+
+                // Replay queued stores into the returning line before install.
+                for (int q = 0; q < 4; q++) begin
+                    if ((q < mshr0.tail) && mshrq_is_store[0][q]) begin
+                        refill_line[mshrq_offset[0][q]*8 +: 64] = mshrq_data[0][q];
+                        refill_dirty = 1'b1;
+                    end
+                end
+
+                data_array[refill_way][set_idx] <= refill_line;
+                tag_array[refill_way][set_idx] <= refill_tag;
+                valid_array[refill_way][set_idx] <= 1'b1;
+                dirty_array[refill_way][set_idx] <= refill_dirty;
+                mshr0.done <= 1'b1;
+                mshr0.valid <= 1'b0;
+                mshr0.mem_sent <= 1'b0;
+                mshr0.tail <= '0;
+            end else if (!free1 && mshr1.mem_sent) begin
+                set_idx = mshr1.block_addr[1:0];
+                refill_tag = mshr1.block_addr[23:2];
+                refill_way = lru_array[set_idx];
+                refill_line = l2_resp_data;
+                refill_dirty = 1'b0;
+
+                // Replay queued stores into the returning line before install.
+                for (int q = 0; q < 4; q++) begin
+                    if ((q < mshr1.tail) && mshrq_is_store[1][q]) begin
+                        refill_line[mshrq_offset[1][q]*8 +: 64] = mshrq_data[1][q];
+                        refill_dirty = 1'b1;
+                    end
+                end
+
+                data_array[refill_way][set_idx] <= refill_line;
+                tag_array[refill_way][set_idx] <= refill_tag;
+                valid_array[refill_way][set_idx] <= 1'b1;
+                dirty_array[refill_way][set_idx] <= refill_dirty;
+                
+            end
+        end
+    end
+
+end
 
 
 
@@ -100,47 +199,59 @@ logic tag_match;
 always_ff @(posedge clk) begin : blockName
     if (!rst_n)begin // reset the thing
     end
-    if (lookup_req_i && !req_write) begin // we got a request and its not a write 
+    else if (lookup_req_i && !req_write) begin // we got a request and its not a write 
         // It should be valid if its a read if its a write we have abother ff for it 
         if (lookup_hit_o) begin
             if (hit_way0 == 1) begin
-                    if (valid_array[0][index] && tag_match == 1) begin
-                        grabbedData <= data_array[0][index][63:0]; // depends on offset logic
+                    if (valid_array[0][index] && tag_array[0][index] == tag) begin
+                        grabbedData <= data_array[0][index][offset*8 +: 64]; // depends on offset logic
                         tag_match <= tag_array[0][index] == tag;
                         lru_array[index] <= 1'b0; 
                     end
             end 
             else if (hit_way1 == 1) begin
-                    if (valid_array[1][index] && tag_match == 1) begin
-                        grabbedData <= data_array[1][index][63:0]; // depends on offset logic assume for rn that its the first 64 bits
+                    if (valid_array[1][index] && tag_array[0][index] == tag) begin
+                        grabbedData <= data_array[1][index][offset*8 +: 64]; // depends on offset logic assume for rn that its the first 64 bits
                         tag_match <= tag_array[1][index] == tag;
                         lru_array[index] <= 1'b1; 
                     end
             end 
         end else begin  // Read miss — allocate MSHR
                 if (hit0) begin
-                    mshr_queue[0][mshr[0].tail] <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
-                    mshr[0].tail <= mshr[0].tail + 1;
+                    mshrq_is_store[0][mshr0.tail] <= 1'b0;
+                    mshrq_data[0][mshr0.tail] <= 64'b0;
+                    mshrq_mask[0][mshr0.tail] <= 8'hFF;
+                    mshrq_offset[0][mshr0.tail] <= req_addr[5:0];
+                    mshr0.tail <= mshr0.tail + 1;
                 end
                 else if (hit1) begin
-                    mshr_queue[1][mshr[1].tail] <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
-                    mshr[1].tail <= mshr[1].tail + 1;
+                    mshrq_is_store[1][mshr1.tail] <= 1'b0;
+                    mshrq_data[1][mshr1.tail] <= 64'b0;
+                    mshrq_mask[1][mshr1.tail] <= 8'hFF;
+                    mshrq_offset[1][mshr1.tail] <= req_addr[5:0];
+                    mshr1.tail <= mshr1.tail + 1;
                 end
                 else if (free0) begin
-                    mshr[0].valid      <= 1;
-                    mshr[0].block_addr <= req_addr[29:6];
-                    mshr[0].mem_sent   <= 0;
-                    mshr[0].done       <= 0;
-                    mshr_queue[0][0]   <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
-                    mshr[0].tail       <= 1;
+                    mshr0.valid      <= 1;
+                    mshr0.block_addr <= req_addr[29:6];
+                    mshr0.mem_sent   <= 0;
+                    mshr0.done       <= 0;
+                    mshrq_is_store[0][0] <= 1'b0;
+                    mshrq_data[0][0] <= 64'b0;
+                    mshrq_mask[0][0] <= 8'hFF;
+                    mshrq_offset[0][0] <= req_addr[5:0];
+                    mshr0.tail       <= 1;
                 end
                 else if (free1) begin
-                    mshr[1].valid      <= 1;
-                    mshr[1].block_addr <= req_addr[29:6];
-                    mshr[1].mem_sent   <= 0;
-                    mshr[1].done       <= 0;
-                    mshr_queue[1][0]   <= '{1'b0, 64'b0, 8'hFF, req_addr[5:0]};
-                    mshr[1].tail       <= 1;
+                    mshr1.valid      <= 1;
+                    mshr1.block_addr <= req_addr[29:6];
+                    mshr1.mem_sent   <= 0;
+                    mshr1.done       <= 0;
+                    mshrq_is_store[1][0] <= 1'b0;
+                    mshrq_data[1][0] <= 64'b0;
+                    mshrq_mask[1][0] <= 8'hFF;
+                    mshrq_offset[1][0] <= req_addr[5:0];
+                    mshr1.tail       <= 1;
                 end
             end
     end
@@ -157,7 +268,7 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
         for (int sets = 0; sets < 4; sets++)
             valid_array[way][sets] <= 1'b0;
 
-    else if (req_valid && req_write) begin // we have a write request and its valid 
+    else if (lookup_req_i && req_write) begin // we have a write request and its valid 
         //we need to write to a spot on data, write the dirty bit and and update the valid
         // nothing is there we just want something
         
@@ -185,29 +296,41 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
 
         else begin  // okay so we fucked up and need to get from L2 
             if (hit0) begin
-                mshr_queue[0][mshr[0].tail] <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
-                mshr[0].tail <= mshr[0].tail + 1;
+                mshrq_is_store[0][mshr0.tail] <= 1'b1;
+                mshrq_data[0][mshr0.tail] <= req_wdata;
+                mshrq_mask[0][mshr0.tail] <= 8'hFF;
+                mshrq_offset[0][mshr0.tail] <= req_addr[5:0];
+                mshr0.tail <= mshr0.tail + 1;
             end
             else if (hit1) begin
-                mshr_queue[1][mshr[1].tail] <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
-                mshr[1].tail <= mshr[1].tail + 1;
+                mshrq_is_store[1][mshr1.tail] <= 1'b1;
+                mshrq_data[1][mshr1.tail] <= req_wdata;
+                mshrq_mask[1][mshr1.tail] <= 8'hFF;
+                mshrq_offset[1][mshr1.tail] <= req_addr[5:0];
+                mshr1.tail <= mshr1.tail + 1;
             end
             // Primary miss: allocate a free entry
             else if (free0) begin
-                mshr[0].valid      <= 1;
-                mshr[0].block_addr <= req_addr[29:6];
-                mshr[0].mem_sent   <= 0;
-                mshr[0].done       <= 0;
-                mshr_queue[0][0]   <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
-                mshr[0].tail       <= 1;
+                mshr0.valid      <= 1;
+                mshr0.block_addr <= req_addr[29:6];
+                mshr0.mem_sent   <= 0;
+                mshr0.done       <= 0;
+                mshrq_is_store[0][0] <= 1'b1;
+                mshrq_data[0][0] <= req_wdata;
+                mshrq_mask[0][0] <= 8'hFF;
+                mshrq_offset[0][0] <= req_addr[5:0];
+                mshr0.tail       <= 1;
             end
             else if (free1) begin
-                mshr[1].valid      <= 1;
-                mshr[1].block_addr <= req_addr[29:6];
-                mshr[1].mem_sent   <= 0;
-                mshr[1].done       <= 0;
-                mshr_queue[1][0]   <= '{1'b1, req_wdata, 8'hFF, req_addr[5:0]};
-                mshr[1].tail       <= 1;
+                mshr1.valid      <= 1;
+                mshr1.block_addr <= req_addr[29:6];
+                mshr1.mem_sent   <= 0;
+                mshr1.done       <= 0;
+                mshrq_is_store[1][0] <= 1'b1;
+                mshrq_data[1][0] <= req_wdata;
+                mshrq_mask[1][0] <= 8'hFF;
+                mshrq_offset[1][0] <= req_addr[5:0];
+                mshr1.tail       <= 1;
             end
             // else: both MSHRs full, stall 
             end
