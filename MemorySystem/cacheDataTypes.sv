@@ -17,7 +17,8 @@ package cacheDataTypes;
 	localparam int PADDR_WIDTH = 30; // 1 GB address space (physical)
 	localparam int L2_INDEX_WIDTH = $clog2(L2_SETS);
 	localparam int L2_TAG_WIDTH = PADDR_WIDTH - OFFSET_WIDTH - L2_INDEX_WIDTH;
-	localparam int L2_MSHR_QUEUE_SIZE = 8;
+	localparam int L2_MSHR_QUEUE_SIZE = 1;
+	localparam int L2_MSHR_TAIL_WIDTH = (L2_MSHR_QUEUE_SIZE <= 1) ? 1 : $clog2(L2_MSHR_QUEUE_SIZE + 1);
 
 
 
@@ -31,7 +32,7 @@ package cacheDataTypes;
 	typedef struct packed {
 		logic valid; // This MSHR is active and tracking misses
 		logic [PADDR_WIDTH-1:0] addr; // Address of the miss being tracked (block-aligned)
-		logic[$clog2(L2_MSHR_QUEUE_SIZE)-1:0] tail;
+		logic [L2_MSHR_TAIL_WIDTH-1:0] tail; // Number of queued ops for this miss
 	} l2_mshr_t;
 
 	typedef struct packed {
