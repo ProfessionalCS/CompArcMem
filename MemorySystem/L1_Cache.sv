@@ -38,7 +38,7 @@ output logic         l2_req_valid,            // Signal: requesting cache line f
 output logic [29:0]  l2_req_addr,             // Address of line needed from L2
 input  logic         l2_resp_valid,           // L2 response ready with cache line
 input  logic [511:0] l2_resp_data             // Full 64-byte cache line from L2
-    
+
 );
 localparam bit L1_VERBOSE = 1'b1;
 // [511:0] data line 64B, [0:1] way and [0:3] set
@@ -61,6 +61,8 @@ logic[47:0] grabbedTag;
 
 logic[63:0] grabbedData;
 assign resp_rdata = grabbedData;
+logic resp_valid_read, resp_valid_write;
+assign resp_valid = resp_valid_read | resp_valid_write;
 
 
 // We are doing the index nits 
@@ -133,17 +135,17 @@ always_ff @(posedge clk) begin: MSHR
             logic refill_way;
             logic [511:0] refill_line;
             logic refill_dirty;
-            if (!free0 && mshr0.mem_sent || !free1 && mshr1.mem_sent) begin 
-                mshr1.done <= 1'b1;
-                mshr1.valid <= 1'b0;
-                mshr1.mem_sent <= 1'b0;
-                mshr1.tail <= '0;
-            end
             if (!free0 && mshr0.mem_sent) begin
                
                 set_idx = mshr0.block_addr[1:0];
                 refill_tag = mshr0.block_addr[23:2];
-                refill_way = lru_array[set_idx];
+                if (!valid_array[0][set_idx]) begin
+                    refill_way = 1'b0;
+                end else if (!valid_array[1][set_idx]) begin
+                    refill_way = 1'b1;
+                end else begin
+                    refill_way = lru_array[set_idx];
+                end
                 refill_line = l2_resp_data;
                 refill_dirty = 1'b0;
 
@@ -159,6 +161,7 @@ always_ff @(posedge clk) begin: MSHR
                 tag_array[refill_way][set_idx] <= refill_tag;
                 valid_array[refill_way][set_idx] <= 1'b1;
                 dirty_array[refill_way][set_idx] <= refill_dirty;
+                lru_array[set_idx] <= refill_way;
                 mshr0.done <= 1'b1;
                 mshr0.valid <= 1'b0;
                 mshr0.mem_sent <= 1'b0;
@@ -166,7 +169,13 @@ always_ff @(posedge clk) begin: MSHR
             end else if (!free1 && mshr1.mem_sent) begin
                 set_idx = mshr1.block_addr[1:0];
                 refill_tag = mshr1.block_addr[23:2];
-                refill_way = lru_array[set_idx];
+                if (!valid_array[0][set_idx]) begin
+                    refill_way = 1'b0;
+                end else if (!valid_array[1][set_idx]) begin
+                    refill_way = 1'b1;
+                end else begin
+                    refill_way = lru_array[set_idx];
+                end
                 refill_line = l2_resp_data;
                 refill_dirty = 1'b0;
 
@@ -182,7 +191,11 @@ always_ff @(posedge clk) begin: MSHR
                 tag_array[refill_way][set_idx] <= refill_tag;
                 valid_array[refill_way][set_idx] <= 1'b1;
                 dirty_array[refill_way][set_idx] <= refill_dirty;
-                
+                lru_array[set_idx] <= refill_way;
+                mshr1.done <= 1'b1;
+                mshr1.valid <= 1'b0;
+                mshr1.mem_sent <= 1'b0;
+                mshr1.tail <= '0;
             end
         end
     end
@@ -198,6 +211,8 @@ end
 // we have 2 mux if the tag matches the way 1 or way two 
 always_ff @(posedge clk) begin : blockName
     if (!rst_n)begin // reset the thing
+        grabbedData <= '0;
+        tag_match <= 1'b0;
     end
     else if (lookup_req_i && !req_write) begin // we got a request and its not a write 
         // It should be valid if its a read if its a write we have abother ff for it 
@@ -210,7 +225,7 @@ always_ff @(posedge clk) begin : blockName
                     end
             end 
             else if (hit_way1 == 1) begin
-                    if (valid_array[1][index] && tag_array[0][index] == tag) begin
+                    if (valid_array[1][index] && tag_array[1][index] == tag) begin
                         grabbedData <= data_array[1][index][offset*8 +: 64]; // depends on offset logic assume for rn that its the first 64 bits
                         tag_match <= tag_array[1][index] == tag;
                         lru_array[index] <= 1'b1; 
@@ -257,18 +272,37 @@ always_ff @(posedge clk) begin : blockName
     end
     
 end
+
+// One-cycle read response pulse on accepted read hits.
+always_ff @(posedge clk) begin : read_resp_valid
+    if (!rst_n) begin
+        resp_valid_read <= 1'b0;
+    end else begin
+        resp_valid_read <= (lookup_req_i && !req_write && lookup_hit_o);
+    end
+end
 // assign logic [1:0] selected_way = lru_array[index];
 
 // the plan is to add write logic to the L1 we can assume that we have already done all the cleaning 
 // assume no hazards and life is good // we just have to write data nothing big here we are given a adress and will follow the same way as the thing 
 
 always_ff @(posedge clk ) begin : write // asume no evictions rn 
-    if (!rst_n) // We are writting nothings to important rst never happens 
-      for (int way = 0; way < 2; way++) // Clean house 
-        for (int sets = 0; sets < 4; sets++)
+    if (!rst_n) begin // initialize deterministic state
+      for (int way = 0; way < 2; way++) begin
+        for (int sets = 0; sets < 4; sets++) begin
             valid_array[way][sets] <= 1'b0;
-
-    else if (lookup_req_i && req_write) begin // we have a write request and its valid 
+            dirty_array[way][sets] <= 1'b0;
+            tag_array[way][sets] <= '0;
+            data_array[way][sets] <= '0;
+        end
+      end
+      for (int sets = 0; sets < 4; sets++) begin
+        lru_array[sets] <= 1'b0;
+      end
+      resp_valid_write <= 1'b0;
+    end else begin
+        resp_valid_write <= 1'b0;
+        if (lookup_req_i && req_write) begin // we have a write request and its valid 
         //we need to write to a spot on data, write the dirty bit and and update the valid
         // nothing is there we just want something
         
@@ -281,7 +315,7 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
                 lru_array[index] <= 1'b0; 
                 
                 // send data to L2 and make sure they write it
-                resp_valid <= 1'b1;  // Write finished
+                resp_valid_write <= 1'b1;  // Write finished
 
             end
             else if (valid_array[1][index] && tag_array[1][index] == tag) begin
@@ -290,7 +324,7 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
                 data_array[1][index][offset*8 +: 64] <= req_wdata;
                 lru_array[index] <= 1'b1; 
                 // Logic might be wrong 
-                resp_valid <= 1'b1; //hbg
+                resp_valid_write <= 1'b1; //hbg
             end 
         end
 
@@ -334,6 +368,7 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
             end
             // else: both MSHRs full, stall 
             end
-        end 
+        end
+    end
 end
 endmodule 
