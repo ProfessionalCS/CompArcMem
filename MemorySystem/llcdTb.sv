@@ -3,12 +3,17 @@
 /* verilator lint_off UNUSEDSIGNAL */
 /* verilator lint_off WIDTHEXPAND */
 /* verilator lint_off WIDTHTRUNC */
+/* verilator lint_off DECLFILENAME */
+/* verilator lint_off IMPORTSTAR */
+/* verilator lint_off SELRANGE */
+/* verilator lint_off BLKSEQ */
 
 import cacheDataTypes::*;
 
-module llcdTb;
-	logic clk;
-	logic rstN;
+module llcdTb(
+	input logic clk,
+	input logic rstN
+);
 
 	logic l1ReqValid;
 	logic l1ReqWrite;
@@ -39,8 +44,29 @@ module llcdTb;
 		.memWriteReqValid(memWriteReqValid)
 	);
 
-	initial clk = 1'b0;
-	always #5 clk = ~clk;
+	// Simple mock memory and mock L1 instantiated in the testbench file
+	mockMem #(.MEM_LINES(1024)) mockMem (
+		.clk(clk),
+		.rstN(rstN),
+		.memData(memData),
+		.memAddr(memAddr),
+		.memWriteReqValid(memWriteReqValid),
+		.memReadRespValid(memReadRespValid),
+		.memReadRespReady(memReadRespReady)
+	);
+
+	mockL1 mockL1 (
+		.clk(clk),
+		.rstN(rstN),
+		.l1ReqValid(l1ReqValid),
+		.l1ReqWrite(l1ReqWrite),
+		.l1Addr(l1Addr),
+		.l1DataIn(l1DataIn),
+		.l1DataOut(l1DataOut),
+		.l1RespValid(l1RespValid)
+	);
+
+	// Clock and reset are driven externally by the C++ harness
 
 	int passCount;
 	int failCount;
@@ -120,7 +146,7 @@ module llcdTb;
 
 	task automatic doReset();
 		@(negedge clk);
-		rstN = 1'b0;
+		// external reset driven by harness; do not assign rstN here
 		l1ReqValid = 1'b0;
 		l1ReqWrite = 1'b0;
 		l1Addr = '0;
@@ -130,7 +156,7 @@ module llcdTb;
 		repeat (3) @(posedge clk);
 		clearDutState();
 		@(negedge clk);
-		rstN = 1'b1;
+		// external reset driven by harness; do not assign rstN here
 		@(posedge clk);
 		#1;
 	endtask
@@ -241,3 +267,111 @@ module llcdTb;
 
 
 endmodule: llcdTb /* verilator lint_off EOFNEWLINE */
+
+// ------------------------------------------------------------------
+// Mock memory: small behavioral memory to respond to L2 read requests
+// and accept writebacks. Drives the tri-state `memData` bus during
+// read responses and samples it during writes.
+module mockMem #(parameter MEM_LINES = 1024)(
+	input logic clk,
+	input logic rstN,
+	inout tri [DATA_WIDTH-1:0] memData,
+	input logic [PADDR_WIDTH-1:0] memAddr,
+	input logic memWriteReqValid,
+	output logic memReadRespValid,
+	output logic memReadRespReady
+);
+	localparam IDX_BITS = $clog2(MEM_LINES);
+	logic [IDX_BITS-1:0] addrIdx;
+	logic [DATA_WIDTH-1:0] storage [0:MEM_LINES-1];
+
+	// internal control
+	logic pendingRead;
+	integer readDelay;
+
+	always_comb begin
+		addrIdx = memAddr[OFFSET_WIDTH +: IDX_BITS];
+	end
+
+	// memData driver for read responses
+	assign memData = (memReadRespValid) ? storage[addrIdx] : {DATA_WIDTH{1'bz}};
+
+	always_ff @(posedge clk) begin
+		if (!rstN) begin
+			memReadRespValid <= 1'b0;
+			memReadRespReady <= 1'b0;
+			pendingRead <= 1'b0;
+			readDelay <= 0;
+		end else begin
+			// Handle writeback from cache
+			if (memWriteReqValid) begin
+				// sample write data (driven by cache on memData)
+				storage[addrIdx] <= memData;
+				// no read response while writeback ongoing
+				memReadRespValid <= 1'b0;
+				memReadRespReady <= 1'b0;
+				pendingRead <= 1'b0;
+			end else begin
+				// If a read address is presented and no pending read, schedule a response
+				if (!pendingRead && (memAddr != '0)) begin
+					pendingRead <= 1'b1;
+					readDelay <= 3; // some small latency
+					memReadRespValid <= 1'b0;
+					memReadRespReady <= 1'b0;
+				end
+
+				if (pendingRead) begin
+					if (readDelay > 0) begin
+						readDelay <= readDelay - 1;
+					end else begin
+						// Drive a single-cycle valid + ready so cache accepts data
+						memReadRespValid <= 1'b1;
+						memReadRespReady <= 1'b1;
+						pendingRead <= 1'b0;
+					end
+				end else begin
+					// default idle
+					memReadRespValid <= 1'b0;
+					memReadRespReady <= 1'b0;
+				end
+			end
+			// Clear the response after being visible for one cycle
+			if (memReadRespValid && memReadRespReady) begin
+				memReadRespValid <= 1'b0;
+				memReadRespReady <= 1'b0;
+			end
+		end
+	end
+endmodule: mockMem
+
+
+// ------------------------------------------------------------------
+// Mock L1: lightweight observer of requests sent toward the L2. The
+// testbench still drives the request signals; this module simply
+// prints debug info when requests arrive and observes responses.
+module mockL1(
+	input logic clk,
+	input logic rstN,
+	input logic l1ReqValid,
+	input logic l1ReqWrite,
+	input logic [PADDR_WIDTH-1:0] l1Addr,
+	input logic [BLOCK_SIZE-1:0] l1DataIn,
+	input logic [BLOCK_SIZE-1:0] l1DataOut,
+	input logic l1RespValid
+);
+	always_ff @(posedge clk) begin
+		if (!rstN) begin
+		end else begin
+			if (l1ReqValid) begin
+				if (l1ReqWrite) begin
+					$display("[mockL1] WRITE req addr=0x%08h", l1Addr);
+				end else begin
+					$display("[mockL1] READ req addr=0x%08h", l1Addr);
+				end
+			end
+			if (l1RespValid) begin
+				$display("[mockL1] RESP valid, data(63:0)=0x%016h", l1DataOut[63:0]);
+			end
+		end
+	end
+endmodule: mockL1

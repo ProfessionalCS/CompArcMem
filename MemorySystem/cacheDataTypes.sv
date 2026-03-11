@@ -41,4 +41,4 @@ package cacheDataTypes;
 		logic dirty;
 	} l2LineMetadata; // Metadata for each cache line
 
-endpackage: cacheDataTypes /* verilator lint_off EOFNEWLINE */
+endpackage: cacheDataTypes

@@ -1,5 +1,6 @@
 `timescale 1ns/1ps
 
+/* verilator lint_off IMPORTSTAR */
 import cacheDataTypes::*;
 
 // 4 KiB capacity, 64 B block size, 4-way set associative, 16 sets
@@ -84,9 +85,7 @@ module llcd(
 		end
 	end
 
-	function automatic logic [L2_WAY_WIDTH-1:0] selectVictimWay(
-		input logic [L2_WAYS-2:0] plru
-	);
+	function automatic logic [L2_WAY_WIDTH-1:0] selectVictimWay(input logic [L2_WAYS-2:0] plru);
 		logic [L2_WAY_WIDTH-1:0] victim;
 		begin
 			// 4-way tree pLRU.
@@ -100,9 +99,7 @@ module llcd(
 		end
 	endfunction
 
-	function automatic logic [L2_WAY_WIDTH-1:0] chooseFillWay(
-		input logic [L2_INDEX_WIDTH-1:0] setIdx
-	);
+	function automatic logic [L2_WAY_WIDTH-1:0] chooseFillWay(input logic [L2_INDEX_WIDTH-1:0] setIdx);
 		logic [L2_WAY_WIDTH-1:0] chosen;
 		logic foundInvalid;
 		begin
@@ -118,10 +115,7 @@ module llcd(
 		end
 	endfunction
 
-	task automatic updatePlruOnAccess(
-		input logic [L2_INDEX_WIDTH-1:0] setIdx,
-		input logic [L2_WAY_WIDTH-1:0] way
-	);
+	task automatic updatePlruOnAccess(input logic [L2_INDEX_WIDTH-1:0] setIdx, input logic [L2_WAY_WIDTH-1:0] way);
 		begin
 			if (way < 2) begin
 				plruBits[setIdx][0] <= (way == 0) ? 1'b1 : 1'b0;
@@ -258,7 +252,9 @@ module llcd(
 			evictWriteReqReg <= 1'b0;
 
 			if (serviceMshrValid && memReadRespValid && memReadRespReady) begin
+				/* verilator lint_off UNUSEDSIGNAL */
 				logic [PADDR_WIDTH-1:0] mshrAddr;
+				/* verilator lint_on UNUSEDSIGNAL */
 				logic [L2_INDEX_WIDTH-1:0] fillIndex;
 				logic [L2_TAG_WIDTH-1:0] fillTag;
 				logic [L2_WAY_WIDTH-1:0] fillWay;
@@ -317,4 +313,4 @@ module llcd(
 	end
 
 	assign memData = memWriteReqValid ? evictDataReg : {DATA_WIDTH{1'bz}};
-endmodule: llcd /* verilator lint_off EOFNEWLINE */
+endmodule: llcd
