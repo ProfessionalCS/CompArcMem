@@ -1,0 +1,315 @@
+============= LSQ Isolation Testbench =============
+
+Init: Dumps
+[LQ] head=0  tail=0
+      LQ[0]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=0  tail=0
+      SQ[0]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+----------------------------------------------------------------
+
+TC2: Basic Store -> Cache -> Load (no forwarding)
+[LQ] head=0  tail=0
+      LQ[0]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=1  tail=1
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=1  tail=1
+      LQ[0]  V=0  R=1  tid=2  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000010000
+      LQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=1  tail=1
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+  PASS [LQ tid=2 vvalid]  val=1
+  PASS [LQ tid=2 data]  val=0xaaaabbbbccccdddd
+----------------------------------------------------------------
+
+TC3: Store-to-Load Forwarding (RAW)
+[LQ] head=1  tail=1
+      LQ[0]  V=0  R=1  tid=2  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000010000
+      LQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=1  tail=2
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=1  R=0  tid=3  ea=000000000000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=1  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=1  tail=2
+      LQ[0]  V=0  R=1  tid=2  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000010000
+      LQ[1]  V=1  R=0  tid=4  ea=000000000000  vval=0  data=0000000000000000  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=1  tail=2
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=1  R=0  tid=3  ea=000000000000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=1  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=1  tail=2
+      LQ[0]  V=0  R=1  tid=2  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000010000
+      LQ[1]  V=1  R=0  tid=4  ea=000000000000  vval=0  data=0000000000000000  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=1  tail=2
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=1  R=1  tid=3  ea=000000002000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=1  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=1  tail=2
+      LQ[0]  V=0  R=1  tid=2  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000010000
+      LQ[1]  V=1  R=1  tid=4  ea=000000002000  vval=1  data=1111111111111111  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=2  tail=2
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=1  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+  PASS [LQ tid=4 vvalid]  val=1
+  PASS [LQ tid=4 data]  val=0x1111111111111111
+----------------------------------------------------------------
+
+TC4: Store-to-Store Forwarding (WAW)
+[LQ] head=2  tail=2
+      LQ[0]  V=0  R=1  tid=2  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000010000
+      LQ[1]  V=0  R=1  tid=4  ea=000000002000  vval=0  data=1111111111111111  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=2  tail=3
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=1  pa_idx=000000020000
+      SQ[2]  V=1  R=0  tid=5  ea=000000000000  vval=1  data=5555555555555555  sq_tail=0  lq_tail=2  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=2  tail=2
+      LQ[0]  V=0  R=1  tid=2  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000010000
+      LQ[1]  V=0  R=1  tid=4  ea=000000002000  vval=0  data=1111111111111111  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=2  tail=4
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=1  pa_idx=000000020000
+      SQ[2]  V=1  R=0  tid=5  ea=000000000000  vval=1  data=5555555555555555  sq_tail=0  lq_tail=2  pa_idx=000000000000
+      SQ[3]  V=1  R=0  tid=6  ea=000000000000  vval=1  data=6666666666666666  sq_tail=0  lq_tail=2  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=2  tail=2
+      LQ[0]  V=0  R=1  tid=2  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000010000
+      LQ[1]  V=0  R=1  tid=4  ea=000000002000  vval=0  data=1111111111111111  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=2  tail=4
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=1  pa_idx=000000020000
+      SQ[2]  V=1  R=0  tid=5  ea=000000000000  vval=1  data=5555555555555555  sq_tail=0  lq_tail=2  pa_idx=000000000000
+      SQ[3]  V=1  R=1  tid=6  ea=000000003000  vval=1  data=6666666666666666  sq_tail=0  lq_tail=2  pa_idx=000000030000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=2  tail=2
+      LQ[0]  V=0  R=1  tid=2  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=1  lq_tail=0  pa_idx=000000010000
+      LQ[1]  V=0  R=1  tid=4  ea=000000002000  vval=0  data=1111111111111111  sq_tail=2  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=4  tail=4
+      SQ[0]  V=0  R=1  tid=1  ea=000000001000  vval=1  data=aaaabbbbccccdddd  sq_tail=0  lq_tail=0  pa_idx=000000010000
+      SQ[1]  V=0  R=1  tid=3  ea=000000002000  vval=1  data=1111111111111111  sq_tail=0  lq_tail=1  pa_idx=000000020000
+      SQ[2]  V=0  R=1  tid=5  ea=000000003000  vval=1  data=5555555555555555  sq_tail=0  lq_tail=2  pa_idx=000000000000
+      SQ[3]  V=0  R=1  tid=6  ea=000000003000  vval=1  data=6666666666666666  sq_tail=0  lq_tail=2  pa_idx=000000030000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+  PASS [SQ tid=5 vvalid]  val=1
+  PASS [SQ tid=5 data]  val=0x5555555555555555
+----------------------------------------------------------------
+
+TC5: Load Invalidation (WAR)
+[LQ] head=0  tail=0
+      LQ[0]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=0  tail=1
+      SQ[0]  V=1  R=0  tid=a  ea=000000000000  vval=1  data=deadbeefdeadbeef  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=0  tail=1
+      LQ[0]  V=1  R=1  tid=b  ea=000000004000  vval=0  data=0000000000000000  sq_tail=1  lq_tail=0  pa_idx=000000040000
+      LQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=0  tail=1
+      SQ[0]  V=1  R=0  tid=a  ea=000000000000  vval=1  data=deadbeefdeadbeef  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+[LQ] head=1  tail=2
+      LQ[0]  V=0  R=1  tid=b  ea=000000004000  vval=1  data=0000000000000000  sq_tail=1  lq_tail=0  pa_idx=000000040000
+      LQ[1]  V=1  R=1  tid=c  ea=000000004000  vval=0  data=0000000000000000  sq_tail=1  lq_tail=0  pa_idx=000000040000
+      LQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      LQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+[SQ] head=0  tail=1
+      SQ[0]  V=1  R=0  tid=a  ea=000000000000  vval=1  data=deadbeefdeadbeef  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[1]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[2]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[3]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[4]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[5]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[6]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+      SQ[7]  V=0  R=0  tid=0  ea=000000000000  vval=0  data=0000000000000000  sq_tail=0  lq_tail=0  pa_idx=000000000000
+
+
+  PASS [TC5a hazard mask nonzero]  val=1
+  PASS [TC5b LQ slot 1 flagged]  val=1
+  PASS [TC5c LQ slot 0 NOT flagged (expected off-by-one)]  val=0
+----------------------------------------------------------------
+
+===================================================
+9 PASSED   0 FAILED
+ALL TESTS PASSED
+===================================================
+
+- lsq_tb.sv:589: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.044 2026-01-01
+- Verilator: $finish at 1us; walltime 0.000 s; speed 2.634 ms/s
+- Verilator: cpu 0.000 s on 1 threads; alloced 7 MB
