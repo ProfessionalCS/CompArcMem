@@ -1,14 +1,18 @@
 VERILATOR ?= verilator
-SV_SRCS := MemorySystem/cacheDataTypes.sv MemorySystem/llcd.sv # MemorySystem/dtlb.sv MemorySystem/lsq.sv MemorySystem/L1_Cache.sv
-OBJ_DIR := build/obj_dir
+LLCD_SRCS := MemorySystem/cacheDataTypes.sv MemorySystem/llcd.sv
+LLCD_TB_SRC := MemorySystem/llcdTb.sv
+OBJ_DIR := obj_dir
 
-.PHONY: all compile clean
+.PHONY: all compile run clean
 
 all: compile
 
 compile:
-	$(VERILATOR) --cc -Wall --Mdir $(OBJ_DIR) $(SV_SRCS)
+	mkdir -p $(OBJ_DIR)
+	$(VERILATOR) --binary --top-module llcdTb -Mdir $(OBJ_DIR) $(LLCD_SRCS) $(LLCD_TB_SRC)
 
+run: compile
+	$(OBJ_DIR)/VllcdTb
 
 clean:
-	rm -rf build
+	rm -rf obj_dir
