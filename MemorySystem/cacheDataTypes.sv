@@ -1,6 +1,8 @@
 `timescale 1ns/1ps
 
 package cacheDataTypes;
+	localparam int VADDR_WIDTH = 48; // 256 TB address space (virtual)
+	localparam int PADDR_WIDTH = 30; // 1 GB address space (physical)
 	// Common info for all cache levels
 	localparam int BLOCK_SIZE = 64;
 	localparam int DATA_WIDTH = 512;
@@ -14,7 +16,6 @@ package cacheDataTypes;
 	localparam int L2_SETS = 16;
 	localparam int L2_MSHR_COUNT = 4;
 	localparam int L2_WAY_WIDTH = $clog2(L2_WAYS);
-	localparam int PADDR_WIDTH = 30; // 1 GB address space (physical)
 	localparam int L2_INDEX_WIDTH = $clog2(L2_SETS);
 	localparam int L2_TAG_WIDTH = PADDR_WIDTH - OFFSET_WIDTH - L2_INDEX_WIDTH;
 	localparam int L2_MSHR_QUEUE_SIZE = 1;

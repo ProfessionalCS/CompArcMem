@@ -8,6 +8,8 @@
 
 `timescale 1ns/1ps
 
+import cacheDataTypes::*;
+
 module top (
     input logic clk,
     input logic rst_n,
@@ -19,18 +21,27 @@ module top (
     logic tlb_req;
 
     logic tlb_hit;
-    logic [29:0] tlb_paddr;
-    logic [47:0] tlb_vaddr;
+    logic [PADDR_WIDTH-1:0] tlb_paddr;
+    logic [VADDR_WIDTH-1:0] tlb_vaddr;
     logic tlb_fill;
-    logic [47:0] fill_vaddr;
-    logic [29:0] fill_paddr;
+    logic [VADDR_WIDTH-1:0] fill_vaddr;
+    logic [PADDR_WIDTH-1:0] fill_paddr;
 
     // -----------------------------------------------------------------------
     // IO for the caches
     // -----------------------------------------------------------------------
     logic cache_ready;
     logic cache_ret_valid;
-    logic [63:0] cache_ret_data;
+    logic [BLOCK_SIZE-1:0] cache_ret_data;
+
+    // -----------------------------------------------------------------------
+    // IO for the cache-memory
+    // -----------------------------------------------------------------------
+    logic memReadRespValid;
+    logic memReadRespReady;
+    logic [BLOCK_SIZE-1:0] memData;
+    logic [PADDR_WIDTH-1:0] memAddr;
+    logic memWriteReqValid;
 
     // -----------------------------------------------------------------------
     // Instantiated modules
@@ -67,6 +78,25 @@ module top (
         .fill_paddr_i   (fill_paddr)
     );
 
-    // Insert dummy or fake/ perfect cache
+
+    // L1 goes here:
+    // ....
+
+
+    llcd dutLLCD(
+      .clk(clk),
+      .rstN(rst_n),
+      .l1ReqValid(),
+      .l1ReqWrite(),
+      .l1Addr(),
+      .l1DataIn(),
+      .l1DataOut(),
+      .l1RespValid(),
+      .memReadRespValid(memReadRespValid),
+      .memReadRespReady(memReadRespReady),
+      .memData(memData),
+      .memAddr(memAddr),
+      .memWriteReqValid(memWriteReqValid)
+    );
 
 endmodule
