@@ -40,7 +40,7 @@ input  logic         l2_resp_valid,           // L2 response ready with cache li
 input  logic [511:0] l2_resp_data             // Full 64-byte cache line from L2
 
 );
-localparam bit L1_VERBOSE = 1'b1;
+localparam bit L1_VERBOSE = 1'b0;
 // [511:0] data line 64B, [0:1] way and [0:3] set
 logic [511:0]   data_array  [0:1][0:3]; 
 logic [21:0]    tag_array   [0:1][0:3];
@@ -60,9 +60,11 @@ logic [5:0]     mshrq_offset   [0:1][0:3]; // [mshr_id][slot] line-local byte of
 logic[47:0] grabbedTag;
 
 logic[63:0] grabbedData;
-assign resp_rdata = grabbedData;
-logic resp_valid_read, resp_valid_write;
-assign resp_valid = resp_valid_read | resp_valid_write;
+logic [63:0] refill_resp_data;
+logic        refill_resp_valid;
+assign resp_rdata = refill_resp_valid ? refill_resp_data : grabbedData;
+logic resp_valid_read_hit, resp_valid_write;
+assign resp_valid = resp_valid_read_hit | refill_resp_valid | resp_valid_write;
 
 
 // We are doing the index nits 
@@ -98,10 +100,11 @@ logic tag_match;
 // lets talk to this guy
 
 always_ff @(posedge clk) begin: MSHR
-
     if (!rst_n) begin
         l2_req_valid <= 1'b0;
         l2_req_addr  <= '0;
+        refill_resp_valid <= 1'b0;
+        refill_resp_data <= '0;
         mshr0.valid <= 1'b0;
         mshr0.mem_sent <= 1'b0;
         mshr0.done <= 1'b0;
@@ -112,12 +115,14 @@ always_ff @(posedge clk) begin: MSHR
         mshr1.done <= 1'b0;
         mshr1.tail <= '0;
         mshr1.block_addr <= '0;
-        
+    
+
     end else begin
         // Default: no new request unless we pick an MSHR below.
         l2_req_valid <= 1'b0;
+        refill_resp_valid <= 1'b0;
 
-        // Issue exactly one miss request per cycle (simple fixed priority: 0 then 1).
+        // Issue exactly one miss request per cycle (simple fixed priority: 0 then 1). we assume 1 cycle 
         if (!free0 && !mshr0.mem_sent) begin
             l2_req_valid <= 1'b1;
             l2_req_addr <= {mshr0.block_addr, 6'b0};
@@ -130,11 +135,13 @@ always_ff @(posedge clk) begin: MSHR
 
         // Consume one returning fill and retire the corresponding in-flight MSHR.
         if (l2_resp_valid) begin
-            logic [1:0] set_idx;
+            logic [1:0] set_idx; // the set indec
             logic [21:0] refill_tag;
             logic refill_way;
             logic [511:0] refill_line;
             logic refill_dirty;
+            logic have_load;
+            logic [5:0] load_offset;
             if (!free0 && mshr0.mem_sent) begin
                
                 set_idx = mshr0.block_addr[1:0];
@@ -148,13 +155,23 @@ always_ff @(posedge clk) begin: MSHR
                 end
                 refill_line = l2_resp_data;
                 refill_dirty = 1'b0;
+                have_load = 1'b0;
+                load_offset = '0;
 
                 // Replay queued stores into the returning line before install.
                 for (int q = 0; q < 4; q++) begin
                     if ((q < mshr0.tail) && mshrq_is_store[0][q]) begin
                         refill_line[mshrq_offset[0][q]*8 +: 64] = mshrq_data[0][q];
                         refill_dirty = 1'b1;
+                    end else if ((q < mshr0.tail) && !mshrq_is_store[0][q] && !have_load) begin
+                        have_load = 1'b1;
+                        load_offset = mshrq_offset[0][q];
                     end
+                end
+
+                if (have_load) begin
+                    refill_resp_valid <= 1'b1;
+                    refill_resp_data <= refill_line[load_offset*8 +: 64];
                 end
 
                 data_array[refill_way][set_idx] <= refill_line;
@@ -178,13 +195,23 @@ always_ff @(posedge clk) begin: MSHR
                 end
                 refill_line = l2_resp_data;
                 refill_dirty = 1'b0;
+                have_load = 1'b0;
+                load_offset = '0;
 
                 // Replay queued stores into the returning line before install.
                 for (int q = 0; q < 4; q++) begin
                     if ((q < mshr1.tail) && mshrq_is_store[1][q]) begin
                         refill_line[mshrq_offset[1][q]*8 +: 64] = mshrq_data[1][q];
                         refill_dirty = 1'b1;
+                    end else if ((q < mshr1.tail) && !mshrq_is_store[1][q] && !have_load) begin
+                        have_load = 1'b1;
+                        load_offset = mshrq_offset[1][q];
                     end
+                end
+
+                if (have_load) begin
+                    refill_resp_valid <= 1'b1;
+                    refill_resp_data <= refill_line[load_offset*8 +: 64];
                 end
 
                 data_array[refill_way][set_idx] <= refill_line;
@@ -199,7 +226,6 @@ always_ff @(posedge clk) begin: MSHR
             end
         end
     end
-
 end
 
 
@@ -209,7 +235,7 @@ end
 //read logc 
 
 // we have 2 mux if the tag matches the way 1 or way two 
-always_ff @(posedge clk) begin : blockName
+always_ff @(posedge clk) begin : read
     if (!rst_n)begin // reset the thing
         grabbedData <= '0;
         tag_match <= 1'b0;
@@ -227,7 +253,7 @@ always_ff @(posedge clk) begin : blockName
             else if (hit_way1 == 1) begin
                     if (valid_array[1][index] && tag_array[1][index] == tag) begin
                         grabbedData <= data_array[1][index][offset*8 +: 64]; // depends on offset logic assume for rn that its the first 64 bits
-                        tag_match <= tag_array[1][index] == tag;
+                        tag_match <= tag_array[1][index] == tag; 
                         lru_array[index] <= 1'b1; 
                     end
             end 
@@ -276,9 +302,9 @@ end
 // One-cycle read response pulse on accepted read hits.
 always_ff @(posedge clk) begin : read_resp_valid
     if (!rst_n) begin
-        resp_valid_read <= 1'b0;
+        resp_valid_read_hit <= 1'b0;
     end else begin
-        resp_valid_read <= (lookup_req_i && !req_write && lookup_hit_o);
+        resp_valid_read_hit <= (lookup_req_i && !req_write && lookup_hit_o);
     end
 end
 // assign logic [1:0] selected_way = lru_array[index];
