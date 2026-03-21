@@ -1,3 +1,9 @@
+/* verilator lint_off EOFNEWLINE */
+/* verilator lint_off UNUSEDSIGNAL */
+/* verilator lint_off UNUSEDPARAM */
+/* verilator lint_off PINCONNECTEMPTY */
+/* verilator lint_off DECLFILENAME */
+/* verilator lint_off SYNCASYNCNET */
 `timescale 1ns/1ps
 
 typedef struct packed {

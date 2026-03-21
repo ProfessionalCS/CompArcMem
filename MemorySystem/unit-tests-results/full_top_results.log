@@ -1,0 +1,22 @@
+-Info: top_with_L1_tb.sv:182: $dumpvar ignored, as Verilated without --trace
+
+TC1: store then load same address
+PASS [TC1] data=a1a1a1a111112222
+
+TC2: store then load different offset in same line
+PASS [TC2] data=b2b2b2b233334444
+
+TC3: cold load miss returns refill data
+FAIL [TC3] got=d00d008000000000 exp=0000000000000000
+
+TC4: re-load previous address
+PASS [TC4] data=a1a1a1a111112222
+
+========================================
+top_with_L1_tb: PASS=3 FAIL=1
+SOME TESTS FAILED
+========================================
+- top_with_L1_tb.sv:230: Verilog $finish
+- S i m u l a t i o n   R e p o r t: Verilator 5.044 2026-01-01
+- Verilator: $finish at 1us; walltime 0.017 s; speed 69.415 us/s
+- Verilator: cpu 0.015 s on 1 threads; alloced 19 MB

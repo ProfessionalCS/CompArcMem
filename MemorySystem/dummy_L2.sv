@@ -1,4 +1,5 @@
 /* verilator lint_off EOFNEWLINE */
+/* verilator lint_off UNUSEDSIGNAL */
 `timescale 1ns/1ps
 
 // Dummy L2 with backing line store.
