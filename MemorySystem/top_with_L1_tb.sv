@@ -10,6 +10,17 @@ module top_with_L1_tb;
     logic clk;
     logic rst_n;
     logic [120:0] trace_line;
+    logic obs_tlb_req;
+    logic obs_cache_req;
+    logic obs_cache_we;
+    logic [29:0] obs_cache_paddr;
+    logic [63:0] obs_cache_wdata;
+    logic obs_cache_ret_valid;
+    logic [63:0] obs_cache_ret_data;
+    logic obs_l2_req_valid;
+    logic [29:0] obs_l2_req_addr;
+    logic obs_wb_valid;
+    logic [29:0] obs_wb_addr;
 
     int pass_count;
     int fail_count;
@@ -17,7 +28,18 @@ module top_with_L1_tb;
     top_with_L1 dut (
         .clk(clk),
         .rst_n(rst_n),
-        .trace_line(trace_line)
+        .trace_line(trace_line),
+        .obs_tlb_req(obs_tlb_req),
+        .obs_cache_req(obs_cache_req),
+        .obs_cache_we(obs_cache_we),
+        .obs_cache_paddr(obs_cache_paddr),
+        .obs_cache_wdata(obs_cache_wdata),
+        .obs_cache_ret_valid(obs_cache_ret_valid),
+        .obs_cache_ret_data(obs_cache_ret_data),
+        .obs_l2_req_valid(obs_l2_req_valid),
+        .obs_l2_req_addr(obs_l2_req_addr),
+        .obs_wb_valid(obs_wb_valid),
+        .obs_wb_addr(obs_wb_addr)
     );
 
     initial clk = 1'b0;
@@ -117,18 +139,18 @@ module top_with_L1_tb;
             for (i = 0; i < timeout_cycles; i++) begin
                 @(posedge clk);
                 #1;
-                if (dut.cache_ret_valid) begin
+                if (obs_cache_ret_valid) begin
                     seen = 1'b1;
                     if (expect_resp) begin
-                        if (dut.cache_ret_data === exp_data) begin
-                            $display("PASS [%s] data=%h", name, dut.cache_ret_data);
+                        if (obs_cache_ret_data === exp_data) begin
+                            $display("PASS [%s] data=%h", name, obs_cache_ret_data);
                             pass_count++;
                         end else begin
-                            $display("FAIL [%s] got=%h exp=%h", name, dut.cache_ret_data, exp_data);
+                            $display("FAIL [%s] got=%h exp=%h", name, obs_cache_ret_data, exp_data);
                             fail_count++;
                         end
                     end else begin
-                        $display("FAIL [%s] unexpected response data=%h", name, dut.cache_ret_data);
+                        $display("FAIL [%s] unexpected response data=%h", name, obs_cache_ret_data);
                         fail_count++;
                     end
                     i = timeout_cycles;
