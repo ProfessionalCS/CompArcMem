@@ -37,7 +37,12 @@ output logic [63:0]  resp_rdata,              // Eight-byte result from read hit
 output logic         l2_req_valid,            // Signal: requesting cache line from L2
 output logic [29:0]  l2_req_addr,             // Address of line needed from L2
 input  logic         l2_resp_valid,           // L2 response ready with cache line
-input  logic [511:0] l2_resp_data             // Full 64-byte cache line from L2
+input  logic [511:0] l2_resp_data,            // Full 64-byte cache line from L2
+
+// Write-back port (dirty evictions)
+output logic         wb_valid,                // L1 is writing back a dirty evicted line
+output logic [29:0]  wb_addr,                 // Byte address of evicted line (line-aligned)
+output logic [511:0] wb_data                  // Full 64-byte dirty line content
 
 );
 localparam bit L1_VERBOSE = 1'b0;
@@ -64,6 +69,7 @@ logic [63:0] refill_resp_data;
 logic        refill_resp_valid;
 assign resp_rdata = refill_resp_valid ? refill_resp_data : grabbedData;
 logic resp_valid_read_hit, resp_valid_write;
+logic read_hit_pending, write_ack_pending;
 assign resp_valid = resp_valid_read_hit | refill_resp_valid | resp_valid_write;
 
 
@@ -100,9 +106,12 @@ logic tag_match;
 // lets talk to this guy
 
 always_ff @(posedge clk) begin: MSHR
-    if (!rst_n) begin
-        l2_req_valid <= 1'b0;
+    if (!rst_n) begin 
+        l2_req_valid <= 1'b0; 
         l2_req_addr  <= '0;
+        wb_valid <= 1'b0;
+        wb_addr  <= '0;
+        wb_data  <= '0;
         refill_resp_valid <= 1'b0;
         refill_resp_data <= '0;
         mshr0.valid <= 1'b0;
@@ -115,12 +124,36 @@ always_ff @(posedge clk) begin: MSHR
         mshr1.done <= 1'b0;
         mshr1.tail <= '0;
         mshr1.block_addr <= '0;
+        grabbedData <= '0;
+        tag_match <= 1'b0;
+        resp_valid_read_hit <= 1'b0;
+        read_hit_pending <= 1'b0;
+        write_ack_pending <= 1'b0;
+        // initialize deterministic state
+        for (int way = 0; way < 2; way++) begin // clean slate on reset, no valid data, no dirty data, tags cleared
+            for (int sets = 0; sets < 4; sets++) begin
+                valid_array[way][sets] <= 1'b0;
+                dirty_array[way][sets] <= 1'b0;
+                tag_array[way][sets] <= '0;
+                data_array[way][sets] <= '0;
+            end
+      end
     
+    for (int sets = 0; sets < 4; sets++) begin
+        lru_array[sets] <= 1'b0;
+      end
+      resp_valid_write <= 1'b0;
+      
 
     end else begin
         // Default: no new request unless we pick an MSHR below.
-        l2_req_valid <= 1'b0;
+        l2_req_valid <= 1'b0; // we are putting zero 
+        wb_valid <= 1'b0;
         refill_resp_valid <= 1'b0;
+        resp_valid_read_hit <= read_hit_pending;
+        resp_valid_write <= write_ack_pending;
+        read_hit_pending <= 1'b0;
+        write_ack_pending <= 1'b0;
 
         // Issue exactly one miss request per cycle (simple fixed priority: 0 then 1). we assume 1 cycle 
         if (!free0 && !mshr0.mem_sent) begin
@@ -134,7 +167,8 @@ always_ff @(posedge clk) begin: MSHR
         end
 
         // Consume one returning fill and retire the corresponding in-flight MSHR.
-        if (l2_resp_valid) begin
+        if (l2_resp_valid) begin // we are getting data back from L2 we need to put it somewhere and we need to update the MSHR and we need to update the cache
+            
             logic [1:0] set_idx; // the set indec
             logic [21:0] refill_tag;
             logic refill_way;
@@ -172,6 +206,13 @@ always_ff @(posedge clk) begin: MSHR
                 if (have_load) begin
                     refill_resp_valid <= 1'b1;
                     refill_resp_data <= refill_line[load_offset*8 +: 64];
+                end
+
+                // Write back dirty victim before overwriting
+                if (valid_array[refill_way][set_idx] && dirty_array[refill_way][set_idx]) begin
+                    wb_valid <= 1'b1;
+                    wb_addr  <= {tag_array[refill_way][set_idx], set_idx, 6'b0};
+                    wb_data  <= data_array[refill_way][set_idx];
                 end
 
                 data_array[refill_way][set_idx] <= refill_line;
@@ -212,6 +253,16 @@ always_ff @(posedge clk) begin: MSHR
                 if (have_load) begin
                     refill_resp_valid <= 1'b1;
                     refill_resp_data <= refill_line[load_offset*8 +: 64];
+                end else if (refill_dirty) begin
+                    // Store-only MSHR: ack now that the store is committed to the line
+                    write_ack_pending <= 1'b1;
+                end
+
+                // Write back dirty victim before overwriting
+                if (valid_array[refill_way][set_idx] && dirty_array[refill_way][set_idx]) begin
+                    wb_valid <= 1'b1;
+                    wb_addr  <= {tag_array[refill_way][set_idx], set_idx, 6'b0};
+                    wb_data  <= data_array[refill_way][set_idx];
                 end
 
                 data_array[refill_way][set_idx] <= refill_line;
@@ -225,8 +276,8 @@ always_ff @(posedge clk) begin: MSHR
                 mshr1.tail <= '0;
             end
         end
-    end
-end
+    
+
 
 
 
@@ -235,19 +286,15 @@ end
 //read logc 
 
 // we have 2 mux if the tag matches the way 1 or way two 
-always_ff @(posedge clk) begin : read
-    if (!rst_n)begin // reset the thing
-        grabbedData <= '0;
-        tag_match <= 1'b0;
-    end
-    else if (lookup_req_i && !req_write) begin // we got a request and its not a write 
+    if (lookup_req_i && !req_write) begin // we got a request and its not a write thus its a read 
         // It should be valid if its a read if its a write we have abother ff for it 
-        if (lookup_hit_o) begin
-            if (hit_way0 == 1) begin
+        if (lookup_hit_o) begin // we have a hit
+            if (hit_way0 == 1) begin 
                     if (valid_array[0][index] && tag_array[0][index] == tag) begin
                         grabbedData <= data_array[0][index][offset*8 +: 64]; // depends on offset logic
                         tag_match <= tag_array[0][index] == tag;
                         lru_array[index] <= 1'b0; 
+                        read_hit_pending <= 1'b1;
                     end
             end 
             else if (hit_way1 == 1) begin
@@ -255,6 +302,7 @@ always_ff @(posedge clk) begin : read
                         grabbedData <= data_array[1][index][offset*8 +: 64]; // depends on offset logic assume for rn that its the first 64 bits
                         tag_match <= tag_array[1][index] == tag; 
                         lru_array[index] <= 1'b1; 
+                        read_hit_pending <= 1'b1;
                     end
             end 
         end else begin  // Read miss — allocate MSHR
@@ -297,38 +345,9 @@ always_ff @(posedge clk) begin : read
             end
     end
     
-end
-
-// One-cycle read response pulse on accepted read hits.
-always_ff @(posedge clk) begin : read_resp_valid
-    if (!rst_n) begin
-        resp_valid_read_hit <= 1'b0;
-    end else begin
-        resp_valid_read_hit <= (lookup_req_i && !req_write && lookup_hit_o);
-    end
-end
-// assign logic [1:0] selected_way = lru_array[index];
-
-// the plan is to add write logic to the L1 we can assume that we have already done all the cleaning 
-// assume no hazards and life is good // we just have to write data nothing big here we are given a adress and will follow the same way as the thing 
-
-always_ff @(posedge clk ) begin : write // asume no evictions rn 
-    if (!rst_n) begin // initialize deterministic state
-      for (int way = 0; way < 2; way++) begin
-        for (int sets = 0; sets < 4; sets++) begin
-            valid_array[way][sets] <= 1'b0;
-            dirty_array[way][sets] <= 1'b0;
-            tag_array[way][sets] <= '0;
-            data_array[way][sets] <= '0;
-        end
-      end
-      for (int sets = 0; sets < 4; sets++) begin
-        lru_array[sets] <= 1'b0;
-      end
-      resp_valid_write <= 1'b0;
-    end else begin
-        resp_valid_write <= 1'b0;
-        if (lookup_req_i && req_write) begin // we have a write request and its valid 
+    // the plan is to add write logic to the L1 we can assume that we have already done all the cleaning 
+    // assume no hazards and life is good // we just have to write data nothing big here we are given a adress and will follow the same way as the thing 
+    if (lookup_req_i && req_write) begin: write // we have a write request and its valid 
         //we need to write to a spot on data, write the dirty bit and and update the valid
         // nothing is there we just want something
         
@@ -341,7 +360,7 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
                 lru_array[index] <= 1'b0; 
                 
                 // send data to L2 and make sure they write it
-                resp_valid_write <= 1'b1;  // Write finished
+                write_ack_pending <= 1'b1;  // Write finished
 
             end
             else if (valid_array[1][index] && tag_array[1][index] == tag) begin
@@ -350,8 +369,15 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
                 data_array[1][index][offset*8 +: 64] <= req_wdata;
                 lru_array[index] <= 1'b1; 
                 // Logic might be wrong 
-                resp_valid_write <= 1'b1; //hbg
+                write_ack_pending <= 1'b1; //hbg
             end 
+            else begin
+                // This should never happen because we have a hit but no match 
+                // we should scream and die if this happens because it means we have a bug in our hit logic
+                // add debug print statement here in case this ever happens
+
+
+            end
         end
 
         else begin  // okay so we fucked up and need to get from L2 
@@ -393,8 +419,11 @@ always_ff @(posedge clk ) begin : write // asume no evictions rn
                 mshr1.tail       <= 1;
             end
             // else: both MSHRs full, stall 
+            // resp_valid <= 1'b0; // stall, backpressure to core until we can accept this write miss
+
             end
         end
     end
-end
+
+    end
 endmodule 
