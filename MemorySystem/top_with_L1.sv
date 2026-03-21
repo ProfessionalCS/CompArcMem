@@ -6,7 +6,9 @@
 
 `timescale 1ns/1ps
 
-module top_with_L1 (
+module top_with_L1 #(
+    parameter bit USE_REAL_L2 = 1'b0
+) (
     input logic clk,
     input logic rst_n,
     input logic [120:0] trace_line,
@@ -117,16 +119,32 @@ module top_with_L1 (
         .wb_data(wb_data)
     );
 
-    dummy_L2 dut_l2 (
-        .clk(clk),
-        .rst_n(rst_n),
-        .l2_req_valid(l2_req_valid),
-        .l2_req_addr(l2_req_addr),
-        .l2_resp_valid(l2_resp_valid),
-        .l2_resp_data(l2_resp_data),
-        .wb_valid(wb_valid),
-        .wb_addr(wb_addr),
-        .wb_data(wb_data)
-    );
+    generate
+        if (USE_REAL_L2) begin : gen_real_l2
+            L2_copy dut_l2 (
+                .clk(clk),
+                .rst_n(rst_n),
+                .l2_req_valid(l2_req_valid),
+                .l2_req_addr(l2_req_addr),
+                .l2_resp_valid(l2_resp_valid),
+                .l2_resp_data(l2_resp_data),
+                .wb_valid(wb_valid),
+                .wb_addr(wb_addr),
+                .wb_data(wb_data)
+            );
+        end else begin : gen_dummy_l2
+            dummy_L2 dut_l2 (
+                .clk(clk),
+                .rst_n(rst_n),
+                .l2_req_valid(l2_req_valid),
+                .l2_req_addr(l2_req_addr),
+                .l2_resp_valid(l2_resp_valid),
+                .l2_resp_data(l2_resp_data),
+                .wb_valid(wb_valid),
+                .wb_addr(wb_addr),
+                .wb_data(wb_data)
+            );
+        end
+    endgenerate
 
 endmodule
