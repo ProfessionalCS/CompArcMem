@@ -36,51 +36,133 @@ module DE10_NANO_SoC_GHRD(
 //=======================================================
 wire hps_fpga_reset_n;
 wire        fpga_clk_50;
-wire [6:0]  fpga_led_internal;
 wire [63:0] adder_a_export;
 wire [63:0] adder_b_export;
 wire [63:0] adder_sum_export;
 
-wire [15:0] fpmult_p_out;
-wire        fpmult_valid_out;
-wire        fpmult_ready_out;
-wire [3:0]  fpmult_oor_out;
-
 assign fpga_clk_50 = FPGA_CLK1_50;
 
-// Wire fpmult outputs into adder_sum_export:
-// [15:0]  = fp result
-// [19:16] = oor flags
-// [20]    = valid
-// [21]    = ready
-// [63:22] = 0
-assign adder_sum_export[15:0]  = fpmult_p_out;
-assign adder_sum_export[19:16] = fpmult_oor_out;
-assign adder_sum_export[20]    = fpmult_valid_out;
-assign adder_sum_export[21]    = fpmult_ready_out;
-assign adder_sum_export[63:22] = 42'b0;
+//=======================================================
+//  Memory Subsystem (replaces fpmult)
+//=======================================================
 
-fpmult #(.P(8), .Q(8)) my_fpmult (
-    .rst_in_N  (hps_fpga_reset_n),
-    .clk_in    (fpga_clk_50),
-    .x_in      (adder_a_export[15:0]),
-    .y_in      (adder_b_export[15:0]),
-    .round_in  (2'b00),
-    .start_in  (adder_a_export[16]),
-    .p_out     (fpmult_p_out),
-    .valid_out (fpmult_valid_out),
-    .ready_out (fpmult_ready_out),
-    .oor_out   (fpmult_oor_out)
+// Trace input assembled from the two 64-bit PIOs
+// trace_line[120:0] = { adder_b[56:0] , adder_a[63:0] }
+wire [120:0] trace_line = {adder_b_export[56:0], adder_a_export[63:0]};
+
+// Observation / debug signals
+wire obs_tlb_req, obs_cache_req, obs_cache_we;
+wire [29:0] obs_cache_paddr;
+wire [63:0] obs_cache_wdata;
+wire obs_cache_ret_valid;
+wire [63:0] obs_cache_ret_data;
+wire obs_l2_req_valid;
+wire [29:0] obs_l2_req_addr;
+wire obs_wb_valid;
+wire [29:0] obs_wb_addr;
+
+assign adder_sum_export = {
+    2'b0,
+    obs_wb_valid,
+    obs_l2_req_valid,
+    obs_wb_addr,
+    obs_cache_ret_data[29:0]
+};
+
+// L2 <-> Avalon memory master wires
+wire         l2_ext_rd_req;
+wire [23:0]  l2_ext_rd_addr;
+wire         l2_ext_rd_valid;
+wire [511:0] l2_ext_rd_data;
+wire         l2_ext_wr_req;
+wire [23:0]  l2_ext_wr_addr;
+wire [511:0] l2_ext_wr_data;
+wire         l2_ext_wr_done;
+wire         l2_ext_busy;
+
+// Avalon-MM master wires (64-bit, connect to fpga_mem on soc_system)
+wire [31:0]  avm_address;
+wire         avm_read;
+wire [63:0]  avm_readdata;
+wire         avm_readdatavalid;
+wire         avm_write;
+wire [63:0]  avm_writedata;
+wire [7:0]   avm_byteenable;
+wire         avm_waitrequest;
+
+// Memory hierarchy: LSQ -> TLB -> L1 -> L2
+top_with_L1 #(
+    .USE_REAL_L2(1'b1),
+    .USE_AVALON(1'b1),
+    .L2_SETS(4)
+) mem_subsystem (
+    .clk(fpga_clk_50),
+    .rst_n(hps_fpga_reset_n),
+    .trace_line(trace_line),
+    .obs_tlb_req(obs_tlb_req),
+    .obs_cache_req(obs_cache_req),
+    .obs_cache_we(obs_cache_we),
+    .obs_cache_paddr(obs_cache_paddr),
+    .obs_cache_wdata(obs_cache_wdata),
+    .obs_cache_ret_valid(obs_cache_ret_valid),
+    .obs_cache_ret_data(obs_cache_ret_data),
+    .obs_l2_req_valid(obs_l2_req_valid),
+    .obs_l2_req_addr(obs_l2_req_addr),
+    .obs_wb_valid(obs_wb_valid),
+    .obs_wb_addr(obs_wb_addr),
+    .ext_mem_rd_req(l2_ext_rd_req),
+    .ext_mem_rd_addr(l2_ext_rd_addr),
+    .ext_mem_rd_valid(l2_ext_rd_valid),
+    .ext_mem_rd_data(l2_ext_rd_data),
+    .ext_mem_wr_req(l2_ext_wr_req),
+    .ext_mem_wr_addr(l2_ext_wr_addr),
+    .ext_mem_wr_data(l2_ext_wr_data),
+    .ext_mem_wr_done(l2_ext_wr_done),
+    .ext_mem_busy(l2_ext_busy)
+);
+
+// Avalon-MM master: 8 x 64-bit beats per 512-bit cache line
+avalon_mem_master avm_master (
+    .clk(fpga_clk_50),
+    .rst_n(hps_fpga_reset_n),
+    .mem_rd_req(l2_ext_rd_req),
+    .mem_rd_addr(l2_ext_rd_addr),
+    .mem_rd_valid(l2_ext_rd_valid),
+    .mem_rd_data(l2_ext_rd_data),
+    .mem_wr_req(l2_ext_wr_req),
+    .mem_wr_addr(l2_ext_wr_addr),
+    .mem_wr_data(l2_ext_wr_data),
+    .mem_wr_done(l2_ext_wr_done),
+    .mem_busy(l2_ext_busy),
+    .avm_address(avm_address),
+    .avm_read(avm_read),
+    .avm_readdata(avm_readdata),
+    .avm_readdatavalid(avm_readdatavalid),
+    .avm_write(avm_write),
+    .avm_writedata(avm_writedata),
+    .avm_byteenable(avm_byteenable),
+    .avm_waitrequest(avm_waitrequest)
 );
 
 //=======================================================
 //  Structural coding
 //=======================================================
 soc_system u0(
-               // Adder
+               // 64-bit PIOs (trace input / status output)
                .adder_a_export(adder_a_export),
                .adder_b_export(adder_b_export),
                .adder_sum_export(adder_sum_export),
+               // FPGA -> DDR3 Avalon-MM path (via fpga_mem_bridge)
+               .fpga_mem_address(avm_address),
+               .fpga_mem_read(avm_read),
+               .fpga_mem_readdata(avm_readdata),
+               .fpga_mem_readdatavalid(avm_readdatavalid),
+               .fpga_mem_write(avm_write),
+               .fpga_mem_writedata(avm_writedata),
+               .fpga_mem_byteenable(avm_byteenable),
+               .fpga_mem_waitrequest(avm_waitrequest),
+               .fpga_mem_burstcount(1'b1),
+               .fpga_mem_debugaccess(1'b0),
                //Clock&Reset
                .clk_clk(FPGA_CLK1_50),
                .reset_reset_n(hps_fpga_reset_n),
@@ -104,6 +186,6 @@ soc_system u0(
                .hps_0_h2f_reset_reset_n(hps_fpga_reset_n)
            );
 
-assign LED = adder_sum_export[7:0];
+assign LED = {7'b0, obs_cache_ret_valid};
 
 endmodule

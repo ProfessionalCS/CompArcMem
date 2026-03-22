@@ -81,14 +81,14 @@ wire [511:0] l2_ext_wr_data;
 wire         l2_ext_wr_done;
 wire         l2_ext_busy;
 
-// ── Avalon-MM master wires (directly connected to soc_system conduit) ───
+// ── Avalon-MM master wires (64-bit, connected to fpga_mem on soc_system) ─
 wire [31:0]  avm_address;
 wire         avm_read;
-wire [255:0] avm_readdata;
+wire [63:0]  avm_readdata;
 wire         avm_readdatavalid;
 wire         avm_write;
-wire [255:0] avm_writedata;
-wire [31:0]  avm_byteenable;
+wire [63:0]  avm_writedata;
+wire [7:0]   avm_byteenable;
 wire         avm_waitrequest;
 
 // ── Instantiate the memory hierarchy ────────────────────────────────────
@@ -178,19 +178,19 @@ soc_system u0(
                .memory_mem_odt(HPS_DDR3_ODT),
                .memory_mem_dm(HPS_DDR3_DM),
                .memory_oct_rzqin(HPS_DDR3_RZQ),
-               .hps_0_h2f_reset_reset_n(hps_fpga_reset_n)
+               .hps_0_h2f_reset_reset_n(hps_fpga_reset_n),
+               // FPGA → DDR3 Avalon-MM path (via fpga_mem_bridge in soc_system)
+               .fpga_mem_address(avm_address),
+               .fpga_mem_read(avm_read),
+               .fpga_mem_readdata(avm_readdata),
+               .fpga_mem_readdatavalid(avm_readdatavalid),
+               .fpga_mem_write(avm_write),
+               .fpga_mem_writedata(avm_writedata),
+               .fpga_mem_byteenable(avm_byteenable),
+               .fpga_mem_waitrequest(avm_waitrequest),
+               .fpga_mem_burstcount(1'b1),
+               .fpga_mem_debugaccess(1'b0)
            );
-
-// TODO: Once Platform Designer exports the f2h_sdram0 conduit, connect:
-//   .f2h_sdram0_data_address(avm_address[26:0]),
-//   .f2h_sdram0_data_read(avm_read),
-//   .f2h_sdram0_data_readdata(avm_readdata),
-//   .f2h_sdram0_data_readdatavalid(avm_readdatavalid),
-//   .f2h_sdram0_data_write(avm_write),
-//   .f2h_sdram0_data_writedata(avm_writedata),
-//   .f2h_sdram0_data_byteenable(avm_byteenable),
-//   .f2h_sdram0_data_waitrequest(avm_waitrequest),
-//   .f2h_sdram0_clk_clk(fpga_clk_50)
 
 assign LED = {obs_cache_ret_valid, obs_l2_req_valid, obs_wb_valid,
               obs_cache_we, obs_cache_req, obs_tlb_req, 2'b0};
