@@ -26,7 +26,8 @@ module L2_copy #(
     parameter int SETS        = 16,      // number of sets
     parameter int MSHR_COUNT  = 4,       // outstanding miss trackers
     parameter int MEM_LINES   = 4096,    // backing-memory depth (lines)
-    parameter int MEM_LATENCY = 3        // memory-fetch cycles
+    parameter int MEM_LATENCY = 3,       // memory-fetch cycles (sim only)
+    parameter bit USE_AVALON  = 1'b0     // 0 = sim backing_mem, 1 = external Avalon
 )(
     input  logic         clk,
     input  logic         rst_n,
@@ -40,7 +41,18 @@ module L2_copy #(
     // ── L1 dirty-writeback interface ────────────────────────────────────
     input  logic         wb_valid,
     input  logic [29:0]  wb_addr,
-    input  logic [511:0] wb_data
+    input  logic [511:0] wb_data,
+
+    // ── External memory interface (active only when USE_AVALON=1) ──────
+    output logic         ext_mem_rd_req,    // pulse: request a 512b read
+    output logic [23:0]  ext_mem_rd_addr,   // block address (paddr[29:6])
+    input  logic         ext_mem_rd_valid,  // pulse: read data ready
+    input  logic [511:0] ext_mem_rd_data,   // 512b read result
+    output logic         ext_mem_wr_req,    // pulse: request a 512b write
+    output logic [23:0]  ext_mem_wr_addr,   // block address (paddr[29:6])
+    output logic [511:0] ext_mem_wr_data,   // 512b data to write
+    input  logic         ext_mem_wr_done,   // pulse: write accepted
+    input  logic         ext_mem_busy       // master is busy
 );
 
 localparam bit L2_VERBOSE = 1'b0;  // flip to 1 for debug prints
@@ -73,7 +85,7 @@ typedef struct packed {
 
 mshr_t mshr [0:MSHR_COUNT-1];
 
-// ━━━ Backing memory (simulation model, replaceable for FPGA) ━━━━━━━━━━━━
+// ━━━ Backing memory (sim only — synthesiser trims when USE_AVALON=1) ━━━━
 logic [511:0] backing_mem [0:MEM_LINES-1];
 
 // Memory-fetch pipeline (single outstanding request)
@@ -81,6 +93,14 @@ logic                  mem_busy;
 logic [3:0]            mem_counter;
 logic [23:0]           mem_pend_addr;
 logic [MSHR_ID_W-1:0] mem_pend_id;
+
+// ━━━ Avalon-mode eviction FIFO (up to 2 pending dirty writebacks) ━━━━━━━
+logic         evict_pending;
+logic [23:0]  evict_addr;
+logic [511:0] evict_data;
+
+// Avalon-mode: remember that ext_mem_rd_valid arrived during refill
+logic         avm_rd_arrived;
 
 // ━━━ Input-stage registers (capture one-cycle pulses from L1) ━━━━━━━━━━━
 logic         s1_req_valid;
@@ -205,6 +225,15 @@ always_ff @(posedge clk or negedge rst_n) begin
         mem_counter    <= '0;
         mem_pend_addr  <= '0;
         mem_pend_id    <= '0;
+        evict_pending  <= 1'b0;
+        evict_addr     <= '0;
+        evict_data     <= '0;
+        avm_rd_arrived <= 1'b0;
+        ext_mem_rd_req  <= 1'b0;
+        ext_mem_rd_addr <= '0;
+        ext_mem_wr_req  <= 1'b0;
+        ext_mem_wr_addr <= '0;
+        ext_mem_wr_data <= '0;
 
         for (int i = 0; i < MSHR_COUNT; i++) begin
             mshr[i].valid      <= 1'b0;
@@ -236,7 +265,9 @@ always_ff @(posedge clk or negedge rst_n) begin
         s1_wb_data   <= wb_data;
 
         // ── Default ─────────────────────────────────────────────────────
-        l2_resp_valid <= 1'b0;
+        l2_resp_valid  <= 1'b0;
+        ext_mem_rd_req <= 1'b0;   // one-cycle pulses
+        ext_mem_wr_req <= 1'b0;
 
         // ════════════════════════════════════════════════════════════════
         //  A: Deferred hit (from previous-cycle refill/hit collision)
@@ -248,9 +279,13 @@ always_ff @(posedge clk or negedge rst_n) begin
         end
 
         // ════════════════════════════════════════════════════════════════
-        //  B: Memory refill completing (counter reached 0)
+        //  B: Memory refill completing
+        //     SIM mode  : triggered by mem_counter reaching 0
+        //     Avalon mode: triggered by ext_mem_rd_valid pulse
         // ════════════════════════════════════════════════════════════════
-        else if (mem_busy && mem_counter == 0) begin
+        else if (USE_AVALON
+                 ? (mem_busy && ext_mem_rd_valid)
+                 : (mem_busy && mem_counter == 0)) begin
             logic [23:0]        fill_blk;
             logic [INDEX_W-1:0] fill_idx;
             logic [TAG_W-1:0]   fill_tag;
@@ -261,20 +296,32 @@ always_ff @(posedge clk or negedge rst_n) begin
             fill_idx  = fill_blk[INDEX_W-1:0];
             fill_tag  = fill_blk[23:INDEX_W];
             fill_way  = find_install_way(fill_idx);
-            fill_data = backing_mem[fill_blk[MEM_IDX_W-1:0]];
+
+            // Data source: Avalon master vs sim backing_mem
+            if (USE_AVALON)
+                fill_data = ext_mem_rd_data;
+            else
+                fill_data = backing_mem[fill_blk[MEM_IDX_W-1:0]];
 
             refill_active = 1'b1;
             refill_set    = fill_idx;
 
-            // Evict dirty victim → backing memory
+            // Evict dirty victim
             if (valid_array[fill_way][fill_idx] &&
                 dirty_array[fill_way][fill_idx]) begin
-                logic [23:0] evict_blk;
-                evict_blk = {tag_array[fill_way][fill_idx], fill_idx};
-                backing_mem[evict_blk[MEM_IDX_W-1:0]] <= data_array[fill_way][fill_idx];
+                logic [23:0] evict_blk_local;
+                evict_blk_local = {tag_array[fill_way][fill_idx], fill_idx};
+                if (USE_AVALON) begin
+                    // Buffer the eviction — drain in section F
+                    evict_pending <= 1'b1;
+                    evict_addr    <= evict_blk_local;
+                    evict_data    <= data_array[fill_way][fill_idx];
+                end else begin
+                    backing_mem[evict_blk_local[MEM_IDX_W-1:0]] <= data_array[fill_way][fill_idx];
+                end
                 `ifndef SYNTHESIS
                 if (L2_VERBOSE) $display("L2: EVICT dirty blk=%06h way=%0d",
-                    evict_blk, fill_way);
+                    evict_blk_local, fill_way);
                 `endif
             end
 
@@ -361,10 +408,12 @@ always_ff @(posedge clk or negedge rst_n) begin
         end
 
         // ════════════════════════════════════════════════════════════════
-        //  D: Memory latency countdown
+        //  D: Memory latency countdown (sim mode only)
         // ════════════════════════════════════════════════════════════════
-        if (mem_busy && mem_counter > 0)
-            mem_counter <= mem_counter - 1;
+        if (!USE_AVALON) begin
+            if (mem_busy && mem_counter > 0)
+                mem_counter <= mem_counter - 1;
+        end
 
         // ════════════════════════════════════════════════════════════════
         //  E: Process latched writeback (runs in parallel with read path)
@@ -390,7 +439,13 @@ always_ff @(posedge clk or negedge rst_n) begin
                         dirty_array[wb_way][s1_wb_idx]) begin
                         logic [23:0] evblk;
                         evblk = {tag_array[wb_way][s1_wb_idx], s1_wb_idx};
-                        backing_mem[evblk[MEM_IDX_W-1:0]] <= data_array[wb_way][s1_wb_idx];
+                        if (USE_AVALON) begin
+                            evict_pending <= 1'b1;
+                            evict_addr    <= evblk;
+                            evict_data    <= data_array[wb_way][s1_wb_idx];
+                        end else begin
+                            backing_mem[evblk[MEM_IDX_W-1:0]] <= data_array[wb_way][s1_wb_idx];
+                        end
                     end
                     data_array[wb_way][s1_wb_idx]  <= s1_wb_data;
                     tag_array[wb_way][s1_wb_idx]   <= s1_wb_tag;
@@ -439,7 +494,13 @@ always_ff @(posedge clk or negedge rst_n) begin
                     dirty_array[dw][dwb_idx]) begin
                     logic [23:0] evblk;
                     evblk = {tag_array[dw][dwb_idx], dwb_idx};
-                    backing_mem[evblk[MEM_IDX_W-1:0]] <= data_array[dw][dwb_idx];
+                    if (USE_AVALON) begin
+                        evict_pending <= 1'b1;
+                        evict_addr    <= evblk;
+                        evict_data    <= data_array[dw][dwb_idx];
+                    end else begin
+                        backing_mem[evblk[MEM_IDX_W-1:0]] <= data_array[dw][dwb_idx];
+                    end
                 end
                 data_array[dw][dwb_idx]  <= defer_wb_data;
                 tag_array[dw][dwb_idx]   <= dwb_tag;
@@ -453,22 +514,52 @@ always_ff @(posedge clk or negedge rst_n) begin
 
         // ════════════════════════════════════════════════════════════════
         //  F: Issue one MSHR → memory request (fixed priority, lowest ID)
+        //     Avalon mode: also drain the eviction buffer when master idle
         // ════════════════════════════════════════════════════════════════
-        if (!mem_busy) begin
-            logic issued;
-            issued = 1'b0;
-            for (int i = 0; i < MSHR_COUNT; i++) begin
-                if (mshr[i].valid && !mshr[i].mem_sent && !issued) begin
-                    mem_busy      <= 1'b1;
-                    mem_counter   <= MEM_LAT_INIT;
-                    mem_pend_addr <= mshr[i].block_addr;
-                    mem_pend_id   <= i[MSHR_ID_W-1:0];
-                    mshr[i].mem_sent <= 1'b1;
-                    issued = 1'b1;
-                    `ifndef SYNTHESIS
-                    if (L2_VERBOSE) $display("L2: MEM REQ mshr[%0d] blk=%06h",
-                        i, mshr[i].block_addr);
-                    `endif
+        if (USE_AVALON) begin
+            // --- Avalon mode: drain eviction buffer first, then issue reads ---
+            if (evict_pending && !ext_mem_busy) begin
+                ext_mem_wr_req  <= 1'b1;
+                ext_mem_wr_addr <= evict_addr;
+                ext_mem_wr_data <= evict_data;
+                evict_pending   <= 1'b0;
+            end else if (!mem_busy && !ext_mem_busy && !evict_pending) begin
+                logic issued;
+                issued = 1'b0;
+                for (int i = 0; i < MSHR_COUNT; i++) begin
+                    if (mshr[i].valid && !mshr[i].mem_sent && !issued) begin
+                        mem_busy        <= 1'b1;
+                        mem_pend_addr   <= mshr[i].block_addr;
+                        mem_pend_id     <= i[MSHR_ID_W-1:0];
+                        mshr[i].mem_sent <= 1'b1;
+                        ext_mem_rd_req  <= 1'b1;
+                        ext_mem_rd_addr <= mshr[i].block_addr;
+                        issued = 1'b1;
+                        `ifndef SYNTHESIS
+                        if (L2_VERBOSE) $display("L2: AVM RD REQ mshr[%0d] blk=%06h",
+                            i, mshr[i].block_addr);
+                        `endif
+                    end
+                end
+            end
+        end else begin
+            // --- Sim mode: start counter-based memory pipeline ---
+            if (!mem_busy) begin
+                logic issued;
+                issued = 1'b0;
+                for (int i = 0; i < MSHR_COUNT; i++) begin
+                    if (mshr[i].valid && !mshr[i].mem_sent && !issued) begin
+                        mem_busy      <= 1'b1;
+                        mem_counter   <= MEM_LAT_INIT;
+                        mem_pend_addr <= mshr[i].block_addr;
+                        mem_pend_id   <= i[MSHR_ID_W-1:0];
+                        mshr[i].mem_sent <= 1'b1;
+                        issued = 1'b1;
+                        `ifndef SYNTHESIS
+                        if (L2_VERBOSE) $display("L2: MEM REQ mshr[%0d] blk=%06h",
+                            i, mshr[i].block_addr);
+                        `endif
+                    end
                 end
             end
         end
@@ -476,10 +567,10 @@ always_ff @(posedge clk or negedge rst_n) begin
     end // process
 end // always_ff
 
-// ━━━ Backing memory initialisation ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━ Backing memory initialisation (sim mode only) ━━━━━━━━━━━━━━━━━━━━━━
+`ifndef SYNTHESIS
 initial begin
     for (int i = 0; i < MEM_LINES; i++)
         backing_mem[i] = '0;
 end
-
-endmodule
+`endif

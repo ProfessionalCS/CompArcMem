@@ -7,7 +7,8 @@
 `timescale 1ns/1ps
 
 module top_with_L1 #(
-    parameter bit USE_REAL_L2 = 1'b0
+    parameter bit USE_REAL_L2 = 1'b0,
+    parameter bit USE_AVALON  = 1'b0    // 1 = L2 uses external Avalon memory
 ) (
     input logic clk,
     input logic rst_n,
@@ -22,7 +23,18 @@ module top_with_L1 #(
     output logic obs_l2_req_valid,
     output logic [29:0] obs_l2_req_addr,
     output logic obs_wb_valid,
-    output logic [29:0] obs_wb_addr
+    output logic [29:0] obs_wb_addr,
+
+    // ── External memory ports (active when USE_AVALON=1) ────────────────
+    output logic         ext_mem_rd_req,
+    output logic [23:0]  ext_mem_rd_addr,
+    input  logic         ext_mem_rd_valid,
+    input  logic [511:0] ext_mem_rd_data,
+    output logic         ext_mem_wr_req,
+    output logic [23:0]  ext_mem_wr_addr,
+    output logic [511:0] ext_mem_wr_data,
+    input  logic         ext_mem_wr_done,
+    input  logic         ext_mem_busy
 );
     // LSQ <-> TLB
     logic tlb_req;
@@ -121,7 +133,9 @@ module top_with_L1 #(
 
     generate
         if (USE_REAL_L2) begin : gen_real_l2
-            L2_copy dut_l2 (
+            L2_copy #(
+                .USE_AVALON(USE_AVALON)
+            ) dut_l2 (
                 .clk(clk),
                 .rst_n(rst_n),
                 .l2_req_valid(l2_req_valid),
@@ -130,7 +144,17 @@ module top_with_L1 #(
                 .l2_resp_data(l2_resp_data),
                 .wb_valid(wb_valid),
                 .wb_addr(wb_addr),
-                .wb_data(wb_data)
+                .wb_data(wb_data),
+                // External memory (active when USE_AVALON=1)
+                .ext_mem_rd_req(ext_mem_rd_req),
+                .ext_mem_rd_addr(ext_mem_rd_addr),
+                .ext_mem_rd_valid(ext_mem_rd_valid),
+                .ext_mem_rd_data(ext_mem_rd_data),
+                .ext_mem_wr_req(ext_mem_wr_req),
+                .ext_mem_wr_addr(ext_mem_wr_addr),
+                .ext_mem_wr_data(ext_mem_wr_data),
+                .ext_mem_wr_done(ext_mem_wr_done),
+                .ext_mem_busy(ext_mem_busy)
             );
         end else begin : gen_dummy_l2
             dummy_L2 dut_l2 (
@@ -144,6 +168,12 @@ module top_with_L1 #(
                 .wb_addr(wb_addr),
                 .wb_data(wb_data)
             );
+            // Tie off external memory ports when not using real L2
+            assign ext_mem_rd_req  = 1'b0;
+            assign ext_mem_rd_addr = '0;
+            assign ext_mem_wr_req  = 1'b0;
+            assign ext_mem_wr_addr = '0;
+            assign ext_mem_wr_data = '0;
         end
     endgenerate
 
