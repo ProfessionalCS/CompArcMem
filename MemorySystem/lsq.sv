@@ -88,9 +88,10 @@ module lsq # (
     assign trace_value = trace_line[119:56];
 
     // TLB forward fill from processor -> bypass LSQ -> TLB
-    assign tlb_fill = (trace_line[54:52] == 3'(OP_TLB_FILL));
-    assign fill_tlb_paddr = trace_line[85:56];
-    assign fill_tlb_vaddr = trace_line[47:0];
+    // REGISTERED: only pulse tlb_fill for one cycle when trace_id changes
+    // and the operation is OP_TLB_FILL.  This prevents spurious fills caused
+    // by PIO transient states (reg_b changes while reg_a still holds a
+    // previous TLB_FILL opcode).
     
     localparam int LOAD_QUEUE_SIZE = N>>1;  // 16 entries -> 8 loads and 8 stores
     localparam int STORE_QUEUE_SIZE = N>>1;
@@ -304,7 +305,11 @@ module lsq # (
             tlb_pending_is_load <= 0;
             tlb_pending_idx <= '0;
 
-            trace_id_prev <= '0;
+            tlb_fill <= 1'b0;
+            fill_tlb_paddr <= '0;
+            fill_tlb_vaddr <= '0;
+
+            trace_id_prev <= 4'hF;  // Start at 0xF so that the first TLB fill with id=0 is not dropped
 
             load_head <= '0;
             load_tail <= '0;
@@ -317,6 +322,7 @@ module lsq # (
         end else begin
             cache_req <= 0;
             tlb_req <= 0;
+            tlb_fill <= 1'b0;
 
             // 1. Handle loads after resolving store (handles the invalidation of all the loads)
             // A store has occurred, so invalidate all loads that are after this store
@@ -374,14 +380,28 @@ module lsq # (
             end
 
             // 4. Check for new operations (register memory loads and stores)
-            if (trace_id != trace_id_prev) begin
+            // Only act on a trace-id edge when the trace carries a legitimate
+            // operation.  PIO transient states (clear_status writes reg_a=0)
+            // produce vv=0 noise that must be ignored entirely — including the
+            // trace_id_prev update, so the real operation's edge isn't consumed.
+            if (trace_id != trace_id_prev &&
+                (trace_op == OP_TLB_FILL || trace_vaddr_is_valid)) begin
                 // Update the previous trace tracker
                 trace_id_prev <= trace_id;
 
+                // TLB fill: capture fill data on the trace_id edge (one-shot)
+                if (trace_op == OP_TLB_FILL) begin
+                    tlb_fill <= 1'b1;
+                    fill_tlb_paddr <= trace_line[85:56];
+                    fill_tlb_vaddr <= trace_line[47:0];
+                end
+
                 // Need to hear request and queue on first cycle
+                // Gate LOAD/STORE on vaddr_is_valid to reject spurious ops
+                // from PIO transient states (e.g. clear_status writes reg_a=0)
                 case (trace_op)
                     OP_MEM_LOAD: begin
-                        if (!load_is_full) begin
+                        if (!load_is_full && trace_vaddr_is_valid) begin
                             load_entries[load_tail][VALID_IDX] <= 1;
                             load_entries[load_tail][RESOLVED_IDX] <= 0;
                             load_entries[load_tail][EA_IDX-:EA_SIZE] <= trace_vaddr;
@@ -403,7 +423,7 @@ module lsq # (
                     end
 
                     OP_MEM_STORE: begin
-                        if (!store_is_full) begin
+                        if (!store_is_full && trace_vaddr_is_valid) begin
                             store_entries[store_tail][VALID_IDX] <= 1;
                             store_entries[store_tail][RESOLVED_IDX] <= 0;
                             store_entries[store_tail][EA_IDX-:EA_SIZE] <= trace_vaddr;

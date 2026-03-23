@@ -166,6 +166,7 @@ deploy-quick:
 	$(SSH) "mkdir -p /root/deploy"
 	$(BSCP) $(HPS_SRC_DIR)/mem_test.c $(HPS_SRC_DIR)/manual_test.c \
 		$(HPS_SRC_DIR)/ddr3_test.c \
+		$(HPS_SRC_DIR)/devmem_verify.c \
 		$(HPS_SRC_DIR)/fpga_manual.c $(HPS_SRC_DIR)/enable_bridges.c \
 		$(HPS_SRC_DIR)/fix_bridges.c $(HPS_SRC_DIR)/test_h2f.c \
 		$(HPS_SRC_DIR)/devmem2.c $(HPS_SRC_DIR)/board_setup.sh \
@@ -177,6 +178,7 @@ deploy-quick:
 		gcc -O2 -o mem_test mem_test.c && \
 		gcc -O2 -o manual_test manual_test.c && \
 		gcc -O2 -o ddr3_test ddr3_test.c && \
+		gcc -O2 -o devmem_verify devmem_verify.c && \
 		gcc -O2 -o fpga_manual fpga_manual.c 2>/dev/null || true && \
 		gcc -O2 -o enable_bridges enable_bridges.c && \
 		gcc -O2 -o fix_bridges fix_bridges.c && \
@@ -222,6 +224,12 @@ board-smoke:
 board-ddr3:
 	@echo "Running DDR3 access test on board $(BOARD_IP) ..."
 	$(SSH) "cd /root/deploy && ./ddr3_test 2>&1"
+
+# ── devmem verify: store via FPGA, read back with /dev/mem ──────────────
+.PHONY: board-devmem-verify
+board-devmem-verify:
+	@echo "Running devmem_verify on board $(BOARD_IP) ..."
+	$(SSH) "cd /root/deploy && ./devmem_verify 2>&1"
 
 # ── Run manual_test correctness suite ────────────────────────────────────
 .PHONY: board-test
@@ -322,6 +330,7 @@ help:
 	@echo "    make board-setup         Compile + service + bridges + test (all-in-one)"
 	@echo "    make board-smoke         Smoke test (store + load back)"
 	@echo "    make board-ddr3          DDR3 proof: store → evict → load from DDR3 (PASS/FAIL)"
+	@echo "    make board-devmem-verify  Store via FPGA, read back with CPU /dev/mem (gold proof)"
 	@echo "    make board-test          Run manual_test correctness suite"
 	@echo "    make board-trace         Replay trace file (TRACE_DELAY=10)"
 	@echo "    make board-status        FPGA + bridges + H2F test"

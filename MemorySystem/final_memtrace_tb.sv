@@ -5,8 +5,8 @@
 
 `timescale 1ns/1ps
 
-module L1_LSQ_TLB_memtrace #(
-    parameter bit USE_REAL_L2 = 1'b0
+module final_memtrace_tb #(
+    parameter bit USE_REAL_L2 = 1'b1
 );
     localparam logic [2:0] OP_MEM_LOAD    = 3'd0;
     localparam logic [2:0] OP_MEM_STORE   = 3'd1;
@@ -21,12 +21,6 @@ module L1_LSQ_TLB_memtrace #(
     logic [127:0] raw_record;
 
     logic [2:0] trace_op;
-    logic [3:0] trace_id;
-    logic [47:0] trace_vaddr;
-    logic trace_vaddr_is_valid;
-    logic [29:0] trace_tlb_paddr;
-    logic [63:0] trace_value;
-    logic trace_value_is_valid;
 
     int fd;
     string trace_file;
@@ -84,14 +78,7 @@ module L1_LSQ_TLB_memtrace #(
         begin
             for (int i = 0; i < 16; i++)
                 raw_record[i*8 +: 8] = buffer[i];
-
-            trace_op             = raw_record[54:52];
-            trace_id             = raw_record[51:48];
-            trace_vaddr          = raw_record[47:0];
-            trace_vaddr_is_valid = raw_record[55];
-            trace_tlb_paddr      = raw_record[85:56];
-            trace_value          = raw_record[119:56];
-            trace_value_is_valid = raw_record[120];
+            trace_op = raw_record[54:52];
         end
     endtask
 
@@ -127,8 +114,8 @@ module L1_LSQ_TLB_memtrace #(
 
     initial begin
         $timeformat(-9, 0, " ns", 8);
-        $dumpfile("L1_LSQ_TLB_memtrace.vcd");
-        $dumpvars(0, L1_LSQ_TLB_memtrace);
+        $dumpfile("final_memtrace_tb.vcd");
+        $dumpvars(0, final_memtrace_tb);
 
         if (!$value$plusargs("TRACE_FILE=%s", trace_file))
             trace_file = "aca-mem-traces/traces/dgemm3_lsq88.bin";
@@ -161,7 +148,7 @@ module L1_LSQ_TLB_memtrace #(
             $finish;
         end
 
-        $display("Running L1_LSQ_TLB_memtrace with TRACE_FILE=%s MAX_REC=%0d", trace_file, max_records);
+        $display("Running final_memtrace_tb with TRACE_FILE=%s MAX_REC=%0d", trace_file, max_records);
 
         while (($fread(buffer, fd) == 16) && ((max_records == 0) || (rec_count < max_records))) begin
             rec_count++;
@@ -192,7 +179,7 @@ module L1_LSQ_TLB_memtrace #(
 
         repeat (drain_cycles) @(posedge clk);
 
-        $display("\n============= L1_LSQ_TLB_memtrace summary =============");
+        $display("\n============= final_memtrace_tb summary =============");
         $display("records processed         : %0d", rec_count);
         $display("loads seen                : %0d", load_count);
         $display("stores seen               : %0d", store_count);
@@ -204,7 +191,7 @@ module L1_LSQ_TLB_memtrace #(
         $display("cache responses observed  : %0d", cache_resp_count);
         $display("l2 requests observed      : %0d", l2_req_count);
         $display("writebacks observed       : %0d", wb_count);
-        $display("=======================================================");
+        $display("=====================================================");
 
         $finish;
     end

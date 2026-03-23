@@ -61,14 +61,42 @@ wire [29:0] obs_l2_req_addr;
 wire obs_wb_valid;
 wire [29:0] obs_wb_addr;
 
-// Pack status into adder_sum_export for HPS to read
-assign adder_sum_export = {
-    2'b0,
-    obs_wb_valid,              // bit 61
-    obs_l2_req_valid,          // bit 60
-    obs_wb_addr,               // bits 59:30
-    obs_cache_ret_data[29:0]   // bits 29:0  (lower 30 bits of returned data)
-};
+// ── Sticky status register ───────────────────────────────────────────────
+// obs_l2_req_valid, obs_wb_valid, obs_cache_ret_valid are 1-cycle pulses
+// at 50 MHz.  The HPS polls at ms granularity and can never catch them via
+// a combinational wire.  Latch them here as sticky set-only bits.
+//   bit 63     : ever saw cache_ret_valid (L1 returned data)
+//   bit 62     : ever saw obs_l2_req_valid (L1 miss → L2 request)
+//   bit 61     : ever saw obs_wb_valid (dirty writeback)
+//   bit 60     : reserved (0)
+//   bits 59:30 : obs_wb_addr at last wb_valid
+//   bits 29:0  : obs_cache_ret_data[29:0] at last cache_ret_valid
+// Clear by writing adder_b with all-1s in bits [63:57].
+reg [63:0] status_sticky;
+wire clear_status = (adder_b_export[63:57] == 7'b1111111);
+
+always @(posedge fpga_clk_50 or negedge hps_fpga_reset_n) begin
+    if (!hps_fpga_reset_n) begin
+        status_sticky <= 64'h0;
+    end else if (clear_status) begin
+        status_sticky <= 64'h0;
+    end else begin
+        if (obs_cache_ret_valid) begin
+            status_sticky[63]    <= 1'b1;
+            status_sticky[29:0]  <= obs_cache_ret_data[29:0];
+        end
+        if (obs_l2_req_valid) begin
+            status_sticky[62]    <= 1'b1;
+        end
+        if (obs_wb_valid) begin
+            status_sticky[61]    <= 1'b1;
+            status_sticky[59:30] <= obs_wb_addr;
+        end
+    end
+end
+
+// Pack sticky status for HPS to read
+assign adder_sum_export = status_sticky;
 
 // ── L2 ↔ Avalon memory master wires ─────────────────────────────────────
 wire         l2_ext_rd_req;

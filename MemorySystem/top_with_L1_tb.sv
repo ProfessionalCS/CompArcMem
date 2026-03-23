@@ -6,7 +6,14 @@
 
 `timescale 1ns/1ps
 
-module top_with_L1_tb;
+module top_with_L1_tb #(
+    parameter bit USE_REAL_L2 = 1'b0
+);
+    localparam logic [2:0] OP_MEM_LOAD    = 3'd0;
+    localparam logic [2:0] OP_MEM_STORE   = 3'd1;
+    localparam logic [2:0] OP_MEM_RESOLVE = 3'd2;
+    localparam logic [2:0] OP_TLB_FILL    = 3'd4;
+
     logic clk;
     logic rst_n;
     logic [120:0] trace_line;
@@ -25,7 +32,30 @@ module top_with_L1_tb;
     int pass_count;
     int fail_count;
 
-    top_with_L1 dut (
+    logic trace_mode;
+    byte buffer [0:15];
+    logic [127:0] raw_record;
+    logic [2:0] trace_op;
+    int fd;
+    string trace_file;
+    int max_records;
+    int drain_cycles;
+    int trace_gap_cycles;
+    int rec_count;
+    int load_count;
+    int store_count;
+    int resolve_count;
+    int fill_count;
+    int cache_resp_count;
+    int cache_req_count;
+    int cache_store_count;
+    int tlb_req_count;
+    int l2_req_count;
+    int wb_count;
+
+    top_with_L1 #(
+        .USE_REAL_L2(USE_REAL_L2)
+    ) dut (
         .clk(clk),
         .rst_n(rst_n),
         .trace_line(trace_line),
@@ -44,6 +74,23 @@ module top_with_L1_tb;
 
     initial clk = 1'b0;
     always #5 clk = ~clk;
+
+    always @(posedge clk) begin
+        if (rst_n && trace_mode) begin
+            if (obs_tlb_req)
+                tlb_req_count <= tlb_req_count + 1;
+            if (obs_cache_req)
+                cache_req_count <= cache_req_count + 1;
+            if (obs_cache_req && obs_cache_we)
+                cache_store_count <= cache_store_count + 1;
+            if (obs_cache_ret_valid)
+                cache_resp_count <= cache_resp_count + 1;
+            if (obs_l2_req_valid)
+                l2_req_count <= l2_req_count + 1;
+            if (obs_wb_valid)
+                wb_count <= wb_count + 1;
+        end
+    end
 
     // -------------------------------------------------------------------------
     // Trace constructors (same layout used by lsq.sv)
@@ -86,6 +133,14 @@ module top_with_L1_tb;
                                                   input logic [63:0] data);
         return make_trace(3'd1, tid, va, 1'b1, data, 1'b1, '0);
     endfunction
+
+    task automatic decode_record;
+        begin
+            for (int i = 0; i < 16; i++)
+                raw_record[i*8 +: 8] = buffer[i];
+            trace_op = raw_record[54:52];
+        end
+    endtask
 
     // -------------------------------------------------------------------------
     // Drive helpers
@@ -172,7 +227,7 @@ module top_with_L1_tb;
     // -------------------------------------------------------------------------
     // Test sequence
     // -------------------------------------------------------------------------
-    initial begin
+    initial begin : run_main
         logic [47:0] va1, va2, va3;
         logic [29:0] pa1, pa3;
         logic [63:0] d1, d2;
@@ -185,8 +240,83 @@ module top_with_L1_tb;
         fail_count = 0;
         rst_n = 1'b0;
         trace_line = '0;
+        trace_mode = 1'b0;
+
+        rec_count = 0;
+        load_count = 0;
+        store_count = 0;
+        resolve_count = 0;
+        fill_count = 0;
+        cache_resp_count = 0;
+        cache_req_count = 0;
+        cache_store_count = 0;
+        tlb_req_count = 0;
+        l2_req_count = 0;
+        wb_count = 0;
 
         do_reset();
+
+        if ($value$plusargs("TRACE_FILE=%s", trace_file)) begin
+            trace_mode = 1'b1;
+            if (!$value$plusargs("MAX_REC=%d", max_records))
+                max_records = 2000;
+            if (!$value$plusargs("DRAIN_CYCLES=%d", drain_cycles))
+                drain_cycles = 4000;
+            if (!$value$plusargs("TRACE_GAP_CYCLES=%d", trace_gap_cycles))
+                trace_gap_cycles = 3;
+
+            fd = $fopen(trace_file, "rb");
+            if (fd == 0) begin
+                $display("ERROR: could not open trace file %s", trace_file);
+                $finish;
+            end
+
+            $display("Running top_with_L1_tb trace replay with TRACE_FILE=%s MAX_REC=%0d", trace_file, max_records);
+
+            while (($fread(buffer, fd) == 16) && ((max_records == 0) || (rec_count < max_records))) begin
+                rec_count++;
+                decode_record();
+
+                case (trace_op)
+                    OP_MEM_LOAD:    load_count++;
+                    OP_MEM_STORE:   store_count++;
+                    OP_MEM_RESOLVE: resolve_count++;
+                    OP_TLB_FILL:    fill_count++;
+                    default: begin end
+                endcase
+
+                @(negedge clk);
+                trace_line = raw_record[120:0];
+                @(posedge clk);
+                #1;
+                repeat (trace_gap_cycles) @(posedge clk);
+
+                if ((rec_count % 1000) == 0)
+                    $display("Progress: processed %0d records", rec_count);
+            end
+
+            $fclose(fd);
+
+            @(negedge clk);
+            trace_line = '0;
+            repeat (drain_cycles) @(posedge clk);
+
+            $display("\n============= top_with_L1_tb trace summary =============");
+            $display("records processed         : %0d", rec_count);
+            $display("loads seen                : %0d", load_count);
+            $display("stores seen               : %0d", store_count);
+            $display("resolves seen             : %0d", resolve_count);
+            $display("tlb fills seen            : %0d", fill_count);
+            $display("tlb requests issued       : %0d", tlb_req_count);
+            $display("cache requests issued     : %0d", cache_req_count);
+            $display("cache stores issued       : %0d", cache_store_count);
+            $display("cache responses observed  : %0d", cache_resp_count);
+            $display("l2 requests observed      : %0d", l2_req_count);
+            $display("writebacks observed       : %0d", wb_count);
+            $display("=========================================================");
+            $finish;
+            disable run_main;
+        end
 
         va1 = 48'h0000_0000_1000;
         va2 = 48'h0000_0000_1030;

@@ -49,8 +49,8 @@ module dummy_L2 (
             l2_resp_valid <= 1'b0;
             l2_resp_data <= '0;
             for (int i = 0; i < MEM_LINES; i++) begin
-                line_valid[i] <= 1'b0;
-                line_mem[i] <= '0;
+                line_valid[i] = 1'b0;
+                line_mem[i] = '0;
             end
         end else begin
             req_d <= l2_req_valid;

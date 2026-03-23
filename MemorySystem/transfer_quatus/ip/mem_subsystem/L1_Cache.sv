@@ -212,6 +212,9 @@ always_ff @(posedge clk) begin: MSHR
                 if (have_load) begin
                     refill_resp_valid <= 1'b1;
                     refill_resp_data <= refill_line[load_offset*8 +: 64];
+                end else if (refill_dirty) begin
+                    // Store-only MSHR: ack now that the store is committed to the line
+                    write_ack_pending <= 1'b1;
                 end
 
                 // Write back dirty victim before overwriting
@@ -225,7 +228,7 @@ always_ff @(posedge clk) begin: MSHR
                 tag_array[refill_way][set_idx] <= refill_tag;
                 valid_array[refill_way][set_idx] <= 1'b1;
                 dirty_array[refill_way][set_idx] <= refill_dirty;
-                lru_array[set_idx] <= refill_way;
+                lru_array[set_idx] <= ~refill_way;
                 mshr0.done <= 1'b1;
                 mshr0.valid <= 1'b0;
                 mshr0.mem_sent <= 1'b0;
@@ -275,7 +278,7 @@ always_ff @(posedge clk) begin: MSHR
                 tag_array[refill_way][set_idx] <= refill_tag;
                 valid_array[refill_way][set_idx] <= 1'b1;
                 dirty_array[refill_way][set_idx] <= refill_dirty;
-                lru_array[set_idx] <= refill_way;
+                lru_array[set_idx] <= ~refill_way;
                 mshr1.done <= 1'b1;
                 mshr1.valid <= 1'b0;
                 mshr1.mem_sent <= 1'b0;
@@ -299,7 +302,7 @@ always_ff @(posedge clk) begin: MSHR
                     if (valid_array[0][index] && tag_array[0][index] == tag) begin
                         grabbedData <= data_array[0][index][offset*8 +: 64]; // depends on offset logic
                         tag_match <= tag_array[0][index] == tag;
-                        lru_array[index] <= 1'b0; 
+                        lru_array[index] <= 1'b1;  // way 1 is now LRU victim 
                         read_hit_pending <= 1'b1;
                     end
             end 
@@ -307,7 +310,7 @@ always_ff @(posedge clk) begin: MSHR
                     if (valid_array[1][index] && tag_array[1][index] == tag) begin
                         grabbedData <= data_array[1][index][offset*8 +: 64]; // depends on offset logic assume for rn that its the first 64 bits
                         tag_match <= tag_array[1][index] == tag; 
-                        lru_array[index] <= 1'b1; 
+                        lru_array[index] <= 1'b0;  // way 0 is now LRU victim 
                         read_hit_pending <= 1'b1;
                     end
             end 
@@ -363,7 +366,7 @@ always_ff @(posedge clk) begin: MSHR
                 valid_array[0][index] <= 1;
                 dirty_array[0][index] <= 1;
                 data_array[0][index][offset*8 +: 64] <= req_wdata;
-                lru_array[index] <= 1'b0; 
+                lru_array[index] <= 1'b1;  // way 1 is now LRU victim
                 
                 // send data to L2 and make sure they write it
                 write_ack_pending <= 1'b1;  // Write finished
@@ -373,9 +376,9 @@ always_ff @(posedge clk) begin: MSHR
                 valid_array[1][index] <= 1;
                 dirty_array[1][index] <= 1;
                 data_array[1][index][offset*8 +: 64] <= req_wdata;
-                lru_array[index] <= 1'b1; 
-                // Logic might be wrong 
-                write_ack_pending <= 1'b1; //hbg
+                lru_array[index] <= 1'b0;  // way 0 is now LRU victim
+                
+                write_ack_pending <= 1'b1;
             end 
             else begin
                 // This should never happen because we have a hit but no match 

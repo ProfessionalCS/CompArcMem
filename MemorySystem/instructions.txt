@@ -1,0 +1,502 @@
+================================================================================
+ FPGA DEPLOYMENT INSTRUCTIONS — Memory Subsystem on DE10-Nano
+================================================================================
+
+Target Board : Terasic DE10-Nano (Cyclone V 5CSEBA6U23I7)
+Board OS     : Debian 10, Linux 5.12.0
+Board IP     : 192.168.0.2   (USB Ethernet / RNDIS)
+SSH Login    : root / root
+Workspace    : MemorySystem/
+
+================================================================================
+ PART 1 — BUILD THE BITSTREAM (Quartus on Host PC)
+================================================================================
+
+1. Open the Quartus project:
+     transfer_quatus/DE10_NANO_SoC_GHRD.qpf
+
+2. Key RTL files used by the project (set in .qsf):
+     - transfer_quatus/DE10_NANO_SoC_GHRD.v     (top-level)
+     - top_with_L1.sv                            (memory hierarchy wrapper)
+     - L1_Cache.sv                               (L1 data cache)
+     - L2_copy.sv                                (L2 cache, Avalon-capable)
+     - lsq.sv                                    (load-store queue)
+     - dtlb.sv                                   (data TLB)
+     - cacheDataTypes.sv                         (shared types/enums)
+     - avalon_mem_master.sv                       (L2 ↔ Avalon-MM bridge)
+
+3. Critical parameters in DE10_NANO_SoC_GHRD.v:
+     .USE_REAL_L2(1'b1)    // use real L2, not dummy
+     .USE_AVALON(1'b1)     // L2 miss → Avalon → DDR3
+     .L2_SETS(4)           // keep L2 small to fit in 4191 LABs
+
+4. Compile (Processing → Start Compilation) or:
+     quartus_sh --flow compile DE10_NANO_SoC_GHRD
+
+5. Convert .sof to .rbf for Linux-side programming:
+     quartus_cpf -c transfer_quatus/output_files/DE10_NANO_SoC_GHRD.sof \
+                    transfer_quatus/output_files/soc_system.rbf
+
+   Output: transfer_quatus/output_files/soc_system.rbf  (~7 MB)
+
+================================================================================
+ PART 2 — MODIFY THE DEVICE TREE (one-time, on the board)
+================================================================================
+
+The factory DTB has all FPGA bridges DISABLED.  You must enable them.
+
+1. SSH into the board:
+     ssh root@192.168.0.2            (password: root)
+
+2. Mount the boot FAT partition:
+     mkdir -p /mnt/bootfat
+     mount /dev/mmcblk0p1 /mnt/bootfat
+
+3. Decompile the current DTB to a readable DTS:
+     dtc -I dtb -O dts -o /root/current.dts \
+         /mnt/bootfat/socfpga_cyclone5_de0_nano_soc.dtb
+
+4. Back up the original:
+     cp /mnt/bootfat/socfpga_cyclone5_de0_nano_soc.dtb \
+        /mnt/bootfat/socfpga_cyclone5_de0_nano_soc.dtb.bak
+
+5. Enable all disabled nodes (bridges, FPGA manager, etc.):
+     sed -i 's/status = "disabled"/status = "okay"/g' /root/current.dts
+
+6. Add bridge-enable property to the four FPGA bridge nodes.
+   Create /root/fix_dts.sh:
+
+     #!/bin/bash
+     awk '
+     /fpga_bridge@ff400000|fpga_bridge@ff500000|fpga_bridge@ff600000|fpga2sdram/ {
+         in_bridge=1
+     }
+     {
+         print
+         if (in_bridge && /status = "okay"/) {
+             print "\t\t\tbridge-enable = <1>;"
+             in_bridge=0
+         }
+     }
+     ' /root/current.dts > /root/modified.dts
+
+   Then run it:
+     chmod +x /root/fix_dts.sh
+     /root/fix_dts.sh
+
+7. Recompile DTS → DTB:
+     dtc -I dts -O dtb -o /root/new.dtb /root/modified.dts
+
+8. Install the new DTB:
+     cp /root/new.dtb /mnt/bootfat/socfpga_cyclone5_de0_nano_soc.dtb
+     sync
+
+   After this, bridges will be enabled automatically on every boot.
+
+================================================================================
+ PART 3 — DEPLOY BITSTREAM TO THE BOARD
+================================================================================
+
+From the host PC (Windows + WSL Ubuntu with sshpass installed):
+
+1. Copy the .rbf to the board:
+     wsl -d Ubuntu -- sshpass -p root scp -o StrictHostKeyChecking=no \
+       transfer_quatus/output_files/soc_system.rbf root@192.168.0.2:/root/
+
+2. SSH in and place it on the boot partition:
+     ssh root@192.168.0.2
+     mount /dev/mmcblk0p1 /mnt/bootfat
+     cp /root/soc_system.rbf /mnt/bootfat/soc_system.rbf
+     sync
+     umount /mnt/bootfat
+
+3. Reboot so U-Boot programs the FPGA at boot:
+     reboot
+
+4. Wait ~30 seconds, then verify:
+
+   a) Check FPGA is programmed:
+        cat /sys/class/fpga_manager/fpga0/state
+        # Expected: "operating"
+
+   b) Check all four bridges exist:
+        ls /sys/class/fpga_bridge/
+        # Expected: br0  br1  br2  br3
+
+   c) Check bridges are enabled:
+        cat /sys/class/fpga_bridge/br0/state
+        cat /sys/class/fpga_bridge/br1/state
+        cat /sys/class/fpga_bridge/br2/state
+        cat /sys/class/fpga_bridge/br3/state
+        # All should say: "enabled"
+
+================================================================================
+ PART 4 — COMPILE AND RUN THE HPS TEST PROGRAM
+================================================================================
+
+The test program is: transfer_quatus/software/hps_mem_test/mem_test.c
+
+1. Copy mem_test.c and trace file to the board:
+     wsl -d Ubuntu -- sshpass -p root scp -o StrictHostKeyChecking=no \
+       transfer_quatus/software/hps_mem_test/mem_test.c \
+       root@192.168.0.2:/root/deploy/
+
+     wsl -d Ubuntu -- sshpass -p root scp -o StrictHostKeyChecking=no \
+       mem-traces-v2/traces/dgemm3_lsq88.bin \
+       root@192.168.0.2:/root/deploy/
+
+2. Compile on the board (native ARM gcc):
+     ssh root@192.168.0.2
+     cd /root/deploy
+     gcc -O2 -o mem_test mem_test.c
+
+3. Run the smoke test:
+     ./mem_test smoke
+
+   Expected output:
+     - TLB_FILL accepted (status stays 0)
+     - LOAD returns data (status changes to non-zero ret_data)
+     - STORE accepted
+     - LOAD-BACK returns stored value (bottom 30 bits match)
+     - NOTE: ret_data is only 30 bits in the status PIO.
+       e.g. storing 0xDEADBEEF reads back as 0x1EADBEEF (bits [31:30] are wb_addr)
+
+4. Run a full trace replay:
+     ./mem_test trace dgemm3_lsq88.bin 10
+
+   - Sends all 46,787 records from the dgemm3 trace
+   - The "10" is a delay in microseconds between records
+   - Watch for changing wb_addr (shows writebacks to different addresses)
+   - No Bus Errors = success
+
+5. Check status at any time:
+     ./mem_test status
+
+================================================================================
+ PART 5 — VERILATOR SIMULATION (on host, via WSL)
+================================================================================
+
+From the workspace root (MemorySystem/):
+
+     make test
+
+This runs three Verilator-based trace tests:
+  - Test 1: mem-traces-v2/traces/dgemm3_lsq88.bin   500 records
+  - Test 2: mem-traces-v2/traces/dgemm3_lsq88.bin  2000 records
+  - Test 3: mem-traces-v2/traces/dgemm3_lsq88.bin  2000 records (full)
+
+All must show "PASS" (111/111 matched per test).
+
+================================================================================
+ FILES CHANGED FROM ORIGINAL GHRD
+================================================================================
+
+1. DE10_NANO_SoC_GHRD.v
+   - Removed fpmult adder, added memory subsystem instantiation
+   - Connected PIOs (adder_a/b/sum) to trace input / status output
+   - Connected Avalon-MM master to soc_system fpga_mem port
+   - Sticky status register: bits 63/62/61/60 = cache_ret/l2_miss/wb/ddr3
+   - LED[0] = L1 hit   (held 0.5s)
+   - LED[1] = L2 hit   (held 0.5s)
+   - LED[2] = DDR3 fetch (held 0.5s)
+   - LED[7] = heartbeat (~1 Hz blink, shows FPGA is alive)
+
+2. L2_copy.sv
+   - Added USE_AVALON parameter (1 = route misses to Avalon master)
+   - Added ACTUAL_MEM_LINES (1 when USE_AVALON to save BRAM)
+   - Fixed missing endmodule
+
+3. lsq.sv
+   - Changed op_e enum values from unsized to 3'd prefix for Quartus
+
+4. top_with_L1.sv
+   - Added L2_SETS parameter (default 16, set to 4 for FPGA)
+   - Added external memory ports for Avalon path
+
+5. avalon_mem_master.sv (new)
+   - 512-bit ↔ 8×64-bit Avalon-MM burst FSM
+
+6. cacheDataTypes.sv
+   - Shared enums and types (op_e, etc.)
+
+7. Device Tree (on board, /mnt/bootfat/*.dtb)
+   - All 4 FPGA bridge nodes: status "disabled" → "okay"
+   - Added bridge-enable = <1> to ALL FOUR bridge nodes:
+       br0 = lwhps2fpga  (fpga-bridge@ff400000)
+       br1 = hps2fpga    (fpga-bridge@ff500000)
+       br2 = fpga2hps    (fpga-bridge@ff600000) ← CRITICAL for Avalon DDR3
+       br3 = fpga2sdram  (fpga-bridge@ffc25080)
+   - IMPORTANT: The DTB node names use DASHES (fpga-bridge) not underscores
+   - Pre-patched DTB saved in: transfer_quatus/socfpga_cyclone5_de0_nano_soc.dtb
+   - Factory original saved in: transfer_quatus/socfpga_cyclone5_de0_nano_soc.dtb.factory
+   - Patched DTS source saved in: transfer_quatus/patched.dts
+
+================================================================================
+ MEMORY MAP (HPS view)
+================================================================================
+
+  0xC000_0000  HPS-to-FPGA bridge (h2f) — 1 GB window
+    +0x00      adder_sum  (read)  — status/ret_data from memory subsystem
+    +0x08      adder_b    (write) — trace_value[63:8] + upper bits
+    +0x10      adder_a    (write) — vaddr/id/op/value[7:0]
+
+  Status word (64-bit read from adder_sum — STICKY LATCH):
+    [63]    = ever saw cache_ret_valid  (L1 returned data to LSQ)
+    [62]    = ever saw l2_req_valid     (L1 miss fired → L2)
+    [61]    = ever saw wb_valid         (dirty writeback from L1)
+    [60]    = ever saw l2_ext_rd_req    (L2 miss → DDR3 fetch)
+    [59:30] = obs_wb_addr[29:0] at last wb_valid
+    [29:0]  = obs_cache_ret_data[29:0] at last cache_ret_valid
+
+    Clear: write adder_b with bits[63:57]=1111111 (e.g. 0xFFFFFFFFFFFFFFFE)
+           then write adder_b=0 to remove sentinel
+
+  Trace input (121-bit, split across two 64-bit PIOs):
+    adder_a[47:0]  = trace_vaddr
+    adder_a[51:48] = trace_id
+    adder_a[54:52] = trace_op  (0=LOAD, 1=STORE, 2=RESOLVE, 4=TLB_FILL)
+    adder_a[55]    = trace_vaddr_valid
+    adder_a[63:56] = trace_value[7:0]
+    adder_b[55:0]  = trace_value[63:8]
+    adder_b[56]    = trace_value_valid
+
+================================================================================
+ TROUBLESHOOTING
+================================================================================
+
+Problem: "Bus Error" when accessing 0xC0000000
+  → Bridges not enabled. Check /sys/class/fpga_bridge/ exists with br0-br3.
+  → If no bridges in sysfs, the DTB wasn't properly modified. Redo Part 2.
+  → If bridges exist but are "disabled", try:
+      echo 1 > /sys/class/fpga_bridge/br0/enable  (repeat for br1-br3)
+
+Problem: FPGA state is "write init" instead of "operating"
+  → soc_system.rbf not on the boot FAT partition, or wrong filename.
+  → Mount /dev/mmcblk0p1, verify soc_system.rbf exists, reboot.
+
+Problem: Board hangs / becomes unreachable after bridge access
+  → AXI hang — the FPGA logic isn't responding. Power-cycle the board.
+  → Verify the .rbf matches your compiled bitstream (check timestamps).
+
+Problem: mem_test smoke shows status never changes from 0
+  → hps_fpga_reset_n may be stuck low. Check LED[0] flickers.
+  → The FPGA may have the wrong bitstream. Recompile and redeploy.
+
+Problem: l2_miss_seen=1 but cache_ret_seen=0 (L2 stuck)
+  → The fpga2hps bridge (br2) is DISABLED. The Avalon memory master
+    cannot reach DDR3 without it. Fix:
+      echo 1 > /sys/class/fpga_bridge/br2/enable
+    Or permanently:  make board-fix-dtb && make board-reboot
+  → Verify: all 4 bridges must show "enabled"
+      cat /sys/class/fpga_bridge/br*/state
+
+Problem: ext4 checksum invalid / kernel panic on boot
+  → Root filesystem corrupted (usually from unclean reboot).
+  → Option A: Re-flash the SD card from the clean image.
+  → Option B: Pull SD card, run in WSL: sudo e2fsck -y /dev/sdX2
+
+Problem: LSQ stuck after running a large trace (status frozen)
+  → The FPGA logic has no software-accessible reset.
+  → Must reboot the board to reprogram the FPGA and reset all state.
+
+================================================================================
+ PART 6 — AUTOMATED DEPLOYMENT (one command)
+================================================================================
+
+Instead of doing all the above steps manually, run the automated script:
+
+  From WSL Ubuntu, in the MemorySystem/ directory:
+    bash deploy_to_board.sh
+
+  This script does everything:
+    1. Pings the board
+    2. Copies soc_system.rbf, mem_test.c, fpga_manual.c, dgemm3_lsq88.bin
+    3. Modifies the device tree (enables bridges + adds bridge-enable)
+    4. Installs the RBF to the boot FAT partition
+    5. Compiles the test programs on the board
+    6. Reboots
+    7. Verifies FPGA state + bridges
+    8. Runs smoke test
+
+  Prerequisites:
+    - sshpass installed in WSL:  sudo apt install sshpass
+    - Board must be reachable at 192.168.0.2 with root/root SSH
+
+================================================================================
+ PART 7 — FULL RECOVERY (if the SD card image is corrupted or re-flashed)
+================================================================================
+
+The repo contains everything needed to restore a fresh image to working state.
+
+  Saved files in transfer_quatus/:
+    socfpga_cyclone5_de0_nano_soc.dtb          ← patched DTB (all bridges enabled)
+    socfpga_cyclone5_de0_nano_soc.dtb.factory  ← factory original DTB (bridges disabled)
+    patched.dts                                 ← human-readable patched DTS source
+    original.dts                                ← human-readable factory DTS source
+    output_files/soc_system.rbf                ← compiled FPGA bitstream
+
+  Option A — One-command recovery:
+    bash recover_board.sh
+    # or: make recover
+
+  Option B — Manual recovery:
+    1. Copy DTB to board and install to boot partition:
+         make board-fix-dtb
+    2. Copy RBF to board and install to boot partition:
+         make deploy
+    3. Reboot:
+         make board-reboot
+    4. Wait 35s, then verify:
+         make board-status
+    5. Run smoke test:
+         make board-smoke
+
+  The recovery uses the pre-compiled DTB binary (not dtc), so it works
+  even if dtc is not installed on a fresh image.
+
+================================================================================
+ PART 7 — MANUAL TESTER (fpga_manual)
+================================================================================
+
+The manual tester lets you send individual operations to the FPGA
+memory subsystem and read back results interactively.
+
+Source: transfer_quatus/software/hps_mem_test/fpga_manual.c
+
+Commands:
+  ./fpga_manual status                          # read current status
+  ./fpga_manual reset                           # reset FPGA bridge + LSQ
+  ./fpga_manual tlb_fill <vaddr_page> <paddr>   # fill TLB entry
+  ./fpga_manual load     <id> <vaddr>           # issue a load
+  ./fpga_manual store    <id> <vaddr> <value>   # issue a store
+  ./fpga_manual resolve  <id> <vaddr> <value> [vv] [dv]  # resolve op
+
+Example session (on the board):
+  ./fpga_manual reset
+  ./fpga_manual tlb_fill 0x1000 0x00001000     # map vpage 0x1000 → paddr 0x1000
+  ./fpga_manual load 1 0x1008                  # load from 0x1008
+  ./fpga_manual store 2 0x1020 0xCAFEBABE      # store 0xCAFEBABE to 0x1020
+  ./fpga_manual load 3 0x1020                  # read back → should see 0x0AFEBABE
+  ./fpga_manual status                         # check final status
+
+Notes:
+  - id range: 0-15 (maps to LSQ entry)
+  - Each new operation MUST use a different id than the previous one
+  - The ret_data field is only [29:0] of the 64-bit return value
+  - You must TLB_FILL a page before loading/storing to addresses in it
+  - All numeric args accept 0x hex or plain decimal
+
+================================================================================
+ PART 8 — MEMORY TRACES EXPLAINED
+================================================================================
+
+What are they?
+  Binary recordings of memory accesses from a real program (DGEMM matrix
+  multiply). Each record is 16 bytes representing one memory operation.
+  They are fed into the RTL memory hierarchy to verify correct behavior.
+
+How they were generated:
+  1. mem-traces-v2/dgemm.c compiled with -static -O3
+  2. Run under Intel Pin Tool (dynamic binary instrumentation)
+  3. Pin callbacks record every load/store with address, data, type
+  4. A 16-entry TLB in the Pin tool injects TLB_FILL records on misses
+  5. Output: binary .bin trace files (16 bytes per record, little-endian)
+
+Binary record format (16 bytes, little-endian):
+  Bytes  0-5:  Virtual address [47:0]
+  Byte   6:    { vaddr_valid[7], op[6:4], id[3:0] }
+  Bytes  7-14: Value (64-bit data or TLB physical address)
+  Byte   15:   { 7'b0, value_valid[0] }
+
+Operation types (op field, 3 bits):
+  0 = LOAD      Load data from memory
+  1 = STORE     Store data to memory
+  2 = RESOLVE   Resolve previously-unresolved address/value
+  4 = TLB_FILL  Provide virtual-to-physical translation
+
+Trace file variants:
+  dgemm3.bin           Basic trace, unified 16-entry ID space
+  dgemm3_lsq88.bin     Separate load/store queues (8+8 entries)
+  dgemm3_real.bin       Unresolved addresses (uses RESOLVE ops)
+  dgemm3_lsq88_real.bin Both: separate queues + unresolved
+
+Utility tools (in mem-traces-v2/):
+  parse_trace.c    Display binary traces as human-readable table
+  replay_trace.c   Simulate LSQ commit logic, output final memory state
+  trace_printer.sv SystemVerilog module for feeding traces into RTL sim
+
+Why they matter:
+  - Verify the cache hierarchy handles real access patterns correctly
+  - The Verilator testbench feeds these traces and checks 111 comparison
+    points match the expected cache behavior
+  - On FPGA, mem_test replays the same traces through real hardware
+
+================================================================================
+ OLD THING TO TRY If that works → SSH works:
+
+```
+ssh root@192.168.0.2
+
+```
+
+---
+
+After boot:
+
+```
+ls -l /dev/fpga0
+ls -l /sys/class/fpga_manager/fpga0
+cat /sys/class/fpga_manager/fpga0/state
+```
+
+You want:
+
+```
+operating
+```
+
+If it says `unknown` or doesn’t exist → wrong device tree or kernel.
+
+---
+
+```
+mkdir -p /mnt/bootfat
+mount /dev/mmcblk0p1 /mnt/bootfat || mount |grep mmcblk0p1
+ls -lah /mnt/bootfat
+ls -lah /mnt/bootfat/extlinux
+cd /mnt/bootfat
+```
+
+---
+
+```
+ls-lh /root/*.rbf
+```
+
+Copy it to the boot name U-Boot expects:
+
+``` ### names to be funny
+cp -v babygirl.rbf /mnt/bootfat/soc_system.rbf
+sync
+ls -lh /mnt/bootfat/soc_system.rbf
+```
+
+```
+sync
+umount /mnt/bootfat
+sync
+```
+
+```
+reboot
+```
+
+---
+
+# 
+
+```
+Programming FPGA
+Loading soc_system.rbf
+```
+

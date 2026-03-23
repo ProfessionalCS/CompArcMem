@@ -5,13 +5,15 @@
 
 `timescale 1ns/1ps
 
-module L1_LSQ_TLB_memtrace #(
+module top_with_L1_file_tb #(
     parameter bit USE_REAL_L2 = 1'b0
 );
-    localparam logic [2:0] OP_MEM_LOAD    = 3'd0;
-    localparam logic [2:0] OP_MEM_STORE   = 3'd1;
-    localparam logic [2:0] OP_MEM_RESOLVE = 3'd2;
-    localparam logic [2:0] OP_TLB_FILL    = 3'd4;
+    typedef enum logic [2:0] {
+        OP_MEM_LOAD    = 3'd0,
+        OP_MEM_STORE   = 3'd1,
+        OP_MEM_RESOLVE = 3'd2,
+        OP_TLB_FILL    = 3'd4
+    } op_e;
 
     logic clk;
     logic rst_n;
@@ -20,13 +22,13 @@ module L1_LSQ_TLB_memtrace #(
     byte buffer [0:15];
     logic [127:0] raw_record;
 
-    logic [2:0] trace_op;
+    op_e trace_op;
     logic [3:0] trace_id;
     logic [47:0] trace_vaddr;
     logic trace_vaddr_is_valid;
-    logic [29:0] trace_tlb_paddr;
-    logic [63:0] trace_value;
     logic trace_value_is_valid;
+    logic [63:0] trace_value;
+    logic [29:0] trace_tlb_paddr;
 
     int fd;
     string trace_file;
@@ -43,38 +45,13 @@ module L1_LSQ_TLB_memtrace #(
     int cache_req_count;
     int cache_store_count;
     int tlb_req_count;
-    int l2_req_count;
-    int wb_count;
-
-    logic obs_tlb_req;
-    logic obs_cache_req;
-    logic obs_cache_we;
-    logic [29:0] obs_cache_paddr;
-    logic [63:0] obs_cache_wdata;
-    logic obs_cache_ret_valid;
-    logic [63:0] obs_cache_ret_data;
-    logic obs_l2_req_valid;
-    logic [29:0] obs_l2_req_addr;
-    logic obs_wb_valid;
-    logic [29:0] obs_wb_addr;
 
     top_with_L1 #(
         .USE_REAL_L2(USE_REAL_L2)
     ) dut (
         .clk(clk),
         .rst_n(rst_n),
-        .trace_line(trace_line),
-        .obs_tlb_req(obs_tlb_req),
-        .obs_cache_req(obs_cache_req),
-        .obs_cache_we(obs_cache_we),
-        .obs_cache_paddr(obs_cache_paddr),
-        .obs_cache_wdata(obs_cache_wdata),
-        .obs_cache_ret_valid(obs_cache_ret_valid),
-        .obs_cache_ret_data(obs_cache_ret_data),
-        .obs_l2_req_valid(obs_l2_req_valid),
-        .obs_l2_req_addr(obs_l2_req_addr),
-        .obs_wb_valid(obs_wb_valid),
-        .obs_wb_addr(obs_wb_addr)
+        .trace_line(trace_line)
     );
 
     initial clk = 1'b0;
@@ -85,7 +62,7 @@ module L1_LSQ_TLB_memtrace #(
             for (int i = 0; i < 16; i++)
                 raw_record[i*8 +: 8] = buffer[i];
 
-            trace_op             = raw_record[54:52];
+            trace_op             = op_e'(raw_record[54:52]);
             trace_id             = raw_record[51:48];
             trace_vaddr          = raw_record[47:0];
             trace_vaddr_is_valid = raw_record[55];
@@ -108,30 +85,27 @@ module L1_LSQ_TLB_memtrace #(
         end
     endtask
 
+    // Counters for observable DUT activity.
     always @(posedge clk) begin
         if (rst_n) begin
-            if (obs_tlb_req)
-                tlb_req_count <= tlb_req_count + 1;
-            if (obs_cache_req)
+            if (dut.cache_req)
                 cache_req_count <= cache_req_count + 1;
-            if (obs_cache_req && obs_cache_we)
+            if (dut.cache_req && dut.cache_we)
                 cache_store_count <= cache_store_count + 1;
-            if (obs_cache_ret_valid)
+            if (dut.cache_ret_valid)
                 cache_resp_count <= cache_resp_count + 1;
-            if (obs_l2_req_valid)
-                l2_req_count <= l2_req_count + 1;
-            if (obs_wb_valid)
-                wb_count <= wb_count + 1;
+            if (dut.tlb_req)
+                tlb_req_count <= tlb_req_count + 1;
         end
     end
 
     initial begin
         $timeformat(-9, 0, " ns", 8);
-        $dumpfile("L1_LSQ_TLB_memtrace.vcd");
-        $dumpvars(0, L1_LSQ_TLB_memtrace);
+        $dumpfile("top_with_L1_file_tb.vcd");
+        $dumpvars(0, top_with_L1_file_tb);
 
         if (!$value$plusargs("TRACE_FILE=%s", trace_file))
-            trace_file = "aca-mem-traces/traces/dgemm3_lsq88.bin";
+            trace_file = "aca-mem-traces/traces/dgemm3.bin";
         if (!$value$plusargs("MAX_REC=%d", max_records))
             max_records = 2000;
         if (!$value$plusargs("DRAIN_CYCLES=%d", drain_cycles))
@@ -148,8 +122,6 @@ module L1_LSQ_TLB_memtrace #(
         cache_req_count = 0;
         cache_store_count = 0;
         tlb_req_count = 0;
-        l2_req_count = 0;
-        wb_count = 0;
 
         rst_n = 1'b0;
         trace_line = '0;
@@ -161,7 +133,7 @@ module L1_LSQ_TLB_memtrace #(
             $finish;
         end
 
-        $display("Running L1_LSQ_TLB_memtrace with TRACE_FILE=%s MAX_REC=%0d", trace_file, max_records);
+        $display("Running top_with_L1 file replay with TRACE_FILE=%s MAX_REC=%0d", trace_file, max_records);
 
         while (($fread(buffer, fd) == 16) && ((max_records == 0) || (rec_count < max_records))) begin
             rec_count++;
@@ -192,7 +164,7 @@ module L1_LSQ_TLB_memtrace #(
 
         repeat (drain_cycles) @(posedge clk);
 
-        $display("\n============= L1_LSQ_TLB_memtrace summary =============");
+        $display("\n============= top_with_L1 file replay summary =============");
         $display("records processed         : %0d", rec_count);
         $display("loads seen                : %0d", load_count);
         $display("stores seen               : %0d", store_count);
@@ -200,11 +172,9 @@ module L1_LSQ_TLB_memtrace #(
         $display("tlb fills seen            : %0d", fill_count);
         $display("tlb requests issued       : %0d", tlb_req_count);
         $display("cache requests issued     : %0d", cache_req_count);
-        $display("cache stores issued       : %0d", cache_store_count);
+        $display("cache stores committed    : %0d", cache_store_count);
         $display("cache responses observed  : %0d", cache_resp_count);
-        $display("l2 requests observed      : %0d", l2_req_count);
-        $display("writebacks observed       : %0d", wb_count);
-        $display("=======================================================");
+        $display("===========================================================");
 
         $finish;
     end

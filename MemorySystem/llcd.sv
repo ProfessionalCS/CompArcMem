@@ -26,7 +26,7 @@ module llcd(
 );
 
 
-	localparam bit LOG_ENABLE = 1'b1;
+	localparam bit LOG_ENABLE = 1'b0;
 
 
 	logic [DATA_WIDTH-1:0] dataArray [L2_SETS-1:0][L2_WAYS-1:0];
