@@ -1,78 +1,97 @@
 `timescale 1ns/1ps
-// Page size : 4 KiB  (12-bit page offset)
-// VPN       : 48 - 12 = 36 bits
-// PPN       : 30 - 12 = 18 bits
+// Page size : configurable via PAGE_OFF (default 12 = 4 KiB)
+// VPN       : VADDR_BITS - PAGE_OFF bits
+// PPN       : PADDR_BITS - PAGE_OFF bits
 
 /* verilator lint_off EOFNEWLINE */
 /* verilator lint_off UNUSEDSIGNAL */
-module dtlb (
-    input  logic        clk,
-    input  logic        rst_n,
+/* verilator lint_off WIDTHEXPAND*/
+module dtlb #(
+    parameter int unsigned NUM_ENTRIES = 16,   // must be a power of 2
+    parameter int unsigned VADDR_BITS  = 48,
+    parameter int unsigned PADDR_BITS  = 30,
+    parameter int unsigned PAGE_OFF    = 12    // log2(page size), e.g. 12 = 4 KiB pages
+) (
+    input  logic                  clk,
+    input  logic                  rst_n,
 
     // Lookup port
-    input  logic        lookup_req_i, //I want to look up something 
-    input  logic [47:0] lookup_vaddr_i, //Vitural Address 
+    input  logic                  lookup_req_i,
+    input  logic [VADDR_BITS-1:0] lookup_vaddr_i,
 
-    //Output
-    output logic        lookup_hit_o, //Theres a hit
-    output logic [29:0] lookup_paddr_o, //Physical Address
+    // Output
+    output logic                  lookup_hit_o,
+    output logic [PADDR_BITS-1:0] lookup_paddr_o,
 
     // Fill port (from OP_TLB_FILL trace entries)
-    // lower 12 bits of fill_vaddr_i and fill_paddr_i are page offset, unused
-    input  logic        fill_req_i, //Theres is something to write into tlb
-    input  logic [47:0] fill_vaddr_i, //Vitural Address
-    input  logic [29:0] fill_paddr_i //Physical Address
+    // lower PAGE_OFF bits of fill_vaddr_i and fill_paddr_i are page offset, unused
+    input  logic                  fill_req_i,
+    input  logic [VADDR_BITS-1:0] fill_vaddr_i,
+    input  logic [PADDR_BITS-1:0] fill_paddr_i
 );
 /* verilator lint_on UNUSEDSIGNAL */
 
-    localparam int unsigned NUM_ENTRIES = 16;
-    localparam int unsigned VPN_BITS    = 36;  // 48 - 12
-    localparam int unsigned PPN_BITS    = 18;  // 30 - 12
-    localparam int unsigned PLRU_BITS   = 15;  // NUM_ENTRIES - 1
+    //parameters
+    localparam int unsigned VPN_BITS  = VADDR_BITS - PAGE_OFF;
+    localparam int unsigned PPN_BITS  = PADDR_BITS - PAGE_OFF;
+    localparam int unsigned PLRU_BITS = NUM_ENTRIES - 1;
+    localparam int unsigned IDX_BITS  = $clog2(NUM_ENTRIES);
+
+    //NUM_ENTRIES/2 - 1
+    localparam int unsigned PLRU_LEAF_BASE = NUM_ENTRIES / 2 - 1;
+
+    // Elaboration-time sanity check
+    initial begin
+        assert ((NUM_ENTRIES & (NUM_ENTRIES - 1)) == 0)
+            else $fatal(1, "dtlb: NUM_ENTRIES (%0d) must be a power of 2", NUM_ENTRIES);
+        assert (NUM_ENTRIES >= 2)
+            else $fatal(1, "dtlb: NUM_ENTRIES must be at least 2");
+        assert (VADDR_BITS > PAGE_OFF)
+            else $fatal(1, "dtlb: VADDR_BITS must be greater than PAGE_OFF");
+        assert (PADDR_BITS > PAGE_OFF)
+            else $fatal(1, "dtlb: PADDR_BITS must be greater than PAGE_OFF");
+    end
 
     // TLB storage
-
-    logic                 valid [NUM_ENTRIES];
-    logic [VPN_BITS-1:0]  vpn   [NUM_ENTRIES];
-    logic [PPN_BITS-1:0]  ppn   [NUM_ENTRIES];
+    logic                valid [NUM_ENTRIES];
+    logic [VPN_BITS-1:0] vpn   [NUM_ENTRIES];
+    logic [PPN_BITS-1:0] ppn   [NUM_ENTRIES];
     logic [PLRU_BITS-1:0] plru_tree;
 
     // Lookup hit detection (combinational)
-
     logic [VPN_BITS-1:0]    lookup_vpn;
-    assign lookup_vpn = lookup_vaddr_i[47:12]; 
+    assign lookup_vpn = lookup_vaddr_i[VADDR_BITS-1:PAGE_OFF];
 
     logic [NUM_ENTRIES-1:0] hit_vec;
-    logic [3:0]             hit_idx;
+    logic [IDX_BITS-1:0]    hit_idx;
     logic                   any_hit;
 
     genvar g;
     generate
         for (g = 0; g < NUM_ENTRIES; g++) begin : gen_hit
-            assign hit_vec[g] = valid[g] & (vpn[g] == lookup_vpn); // hit_vec will be 010000000000 mean it was a hit in the 2 index
+            assign hit_vec[g] = valid[g] & (vpn[g] == lookup_vpn);
         end
     endgenerate
 
     always_comb begin
-        hit_idx = 4'b0;
+        hit_idx = '0;
         any_hit = 1'b0;
         for (int i = 0; i < NUM_ENTRIES; i++) begin
             if (hit_vec[i]) begin
-                hit_idx = 4'(i); //Stores index of where it hit
+                hit_idx = IDX_BITS'(i);
                 any_hit = 1'b1;
             end
         end
     end
 
-
-    // Fill hit detection
-    logic [VPN_BITS-1:0] fill_vpn; //Vitual page number
-    logic [PPN_BITS-1:0] fill_ppn; //Physical page number
-    assign fill_vpn = fill_vaddr_i[47:12]; //Removing the offset for the  vitual address
-    assign fill_ppn = fill_paddr_i[29:12];
+    // Fill hit detection (combinational)
+    logic [VPN_BITS-1:0] fill_vpn;
+    logic [PPN_BITS-1:0] fill_ppn;
+    assign fill_vpn = fill_vaddr_i[VADDR_BITS-1:PAGE_OFF];
+    assign fill_ppn = fill_paddr_i[PADDR_BITS-1:PAGE_OFF];
 
     logic [NUM_ENTRIES-1:0] fill_hit_vec;
-    logic [3:0]             fill_hit_idx;
+    logic [IDX_BITS-1:0]    fill_hit_idx;
     logic                   fill_any_hit;
 
     generate
@@ -82,84 +101,87 @@ module dtlb (
     endgenerate
 
     always_comb begin
-        fill_hit_idx = 4'b0;
+        fill_hit_idx = '0;
         fill_any_hit = 1'b0;
         for (int i = 0; i < NUM_ENTRIES; i++) begin
             if (fill_hit_vec[i]) begin
-                fill_hit_idx = 4'(i);
+                fill_hit_idx = IDX_BITS'(i);
                 fill_any_hit = 1'b1;
             end
         end
     end
 
-
     // First invalid slot (for cold fills)
-
-    logic [3:0] first_invalid;
-    logic       any_invalid;
+    logic [IDX_BITS-1:0] first_invalid;
+    logic                any_invalid;
 
     always_comb begin
-        first_invalid = 4'b0;
+        first_invalid = '0;
         any_invalid   = 1'b0;
         for (int i = 0; i < NUM_ENTRIES; i++) begin
             if (!valid[i] && !any_invalid) begin
-                first_invalid = 4'(i);
+                first_invalid = IDX_BITS'(i);
                 any_invalid   = 1'b1;
             end
         end
     end
 
+    // ------------------------------------------------------------------
     // Pseudo-LRU victim selection (combinational tree walk)
-    // Tree node layout (0-indexed):
-    //   node 0        : root, splits {0..7} vs {8..15}
-    //   nodes 1,2     : level 1
-    //   nodes 3..6    : level 2
-    //   nodes 7..14   : level 3, each governs a pair of leaves
-    // Bit=0 -> go left to find victim; Bit=1 -> go right
-
-    logic [3:0] ni0, ni1, ni2;
-    logic [3:0] victim_idx;
+    //
+    // Tree node layout (0-indexed), generalised for NUM_ENTRIES leaves:
+    //   node 0                          : root
+    //   nodes 1..2                      : level 1
+    //   ...
+    //   nodes PLRU_LEAF_BASE..PLRU_BITS-1 : leaf-level nodes, each governs a pair
+    //
+    // Bit=0 -> go left (lower index); Bit=1 -> go right (higher index)
+    // ------------------------------------------------------------------
+    logic [IDX_BITS-1:0] ni0, ni1, ni2;
+    logic [IDX_BITS-1:0] victim_idx;
 
     always_comb begin
-        ni0        = plru_tree[0] ? 4'd2 : 4'd1;
-        ni1        = plru_tree[ni0] ? (ni0 * 4'd2 + 4'd2) : (ni0 * 4'd2 + 4'd1);
-        ni2        = plru_tree[ni1] ? (ni1 * 4'd2 + 4'd2) : (ni1 * 4'd2 + 4'd1);
-        victim_idx = plru_tree[ni2] ? ((ni2 - 4'd7) * 4'd2 + 4'd1)
-                                    : ((ni2 - 4'd7) * 4'd2);
+        ni0        = plru_tree[0] ? IDX_BITS'(2) : IDX_BITS'(1);
+        ni1        = plru_tree[ni0] ? IDX_BITS'(ni0 * 2 + 2) : IDX_BITS'(ni0 * 2 + 1);
+        ni2        = plru_tree[ni1] ? IDX_BITS'(ni1 * 2 + 2) : IDX_BITS'(ni1 * 2 + 1);
+        victim_idx = plru_tree[ni2]
+                        ? IDX_BITS'((ni2 - IDX_BITS'(PLRU_LEAF_BASE)) * 2 + 1)
+                        : IDX_BITS'((ni2 - IDX_BITS'(PLRU_LEAF_BASE)) * 2);
     end
+
 
     // Pseudo-LRU update function
     // Flips nodes along root->leaf path to point AWAY from accessed entry.
     function automatic logic [PLRU_BITS-1:0] plru_update(
         input logic [PLRU_BITS-1:0] tree,
-        input logic [3:0]           idx
+        input logic [IDX_BITS-1:0]  idx
     );
         logic [PLRU_BITS-1:0] t;
-        logic [3:0] n3, n2, n1;
+        logic [IDX_BITS-1:0]  n3, n2, n1;
 
         t     = tree;
-        n3    = 4'd7 + {1'b0, idx[3:1]};     // level-3 node = 7 + idx/2
-        t[n3] = ~idx[0];                       // point away from leaf
+        // Level-3 (leaf-level) node: PLRU_LEAF_BASE + idx/2
+        n3    = IDX_BITS'(PLRU_LEAF_BASE) + {1'b0, idx[IDX_BITS-1:1]};
+        t[n3] = ~idx[0];  // point away from leaf
 
-        n2    = (n3 - 4'd1) >> 1;             // parent of n3
-        t[n2] = (n3 == (n2 * 4'd2 + 4'd2)) ? 1'b0 : 1'b1;
+        n2    = IDX_BITS'((n3 - 1) >> 1);  // parent of n3
+        t[n2] = (n3 == IDX_BITS'(n2 * 2 + 2)) ? 1'b0 : 1'b1;
 
-        n1    = (n2 - 4'd1) >> 1;             // parent of n2
-        t[n1] = (n2 == (n1 * 4'd2 + 4'd2)) ? 1'b0 : 1'b1;
+        n1    = IDX_BITS'((n2 - 1) >> 1);  // parent of n2
+        t[n1] = (n2 == IDX_BITS'(n1 * 2 + 2)) ? 1'b0 : 1'b1;
 
-        t[0]  = (n1 == 4'd2) ? 1'b0 : 1'b1;  // root
+        t[0]  = (n1 == IDX_BITS'(2)) ? 1'b0 : 1'b1;  // root
 
         return t;
     endfunction
 
-    // Fill write index
-    logic [3:0] fill_write_idx;
+    // Fill write index selection
+    logic [IDX_BITS-1:0] fill_write_idx;
     always_comb begin
         if      (fill_any_hit) fill_write_idx = fill_hit_idx;
         else if (any_invalid)  fill_write_idx = first_invalid;
         else                   fill_write_idx = victim_idx;
     end
-
 
     // Sequential state
     always_ff @(posedge clk or negedge rst_n) begin
@@ -185,7 +207,7 @@ module dtlb (
             // Lookup: register output, update PLRU
             lookup_hit_o <= lookup_req_i & any_hit;
             if (lookup_req_i && any_hit) begin
-                lookup_paddr_o <= {ppn[hit_idx], lookup_vaddr_i[11:0]}; //Physical page number at the hit index + offset!
+                lookup_paddr_o <= {ppn[hit_idx], lookup_vaddr_i[PAGE_OFF-1:0]};
                 if (fill_req_i)
                     plru_tree <= plru_update(plru_update(plru_tree, fill_write_idx), hit_idx);
                 else
@@ -196,5 +218,6 @@ module dtlb (
 
         end
     end
+/* verilator lint_off WIDTHEXPAND*/
 /* verilator lint_off EOFNEWLINE */
 endmodule
