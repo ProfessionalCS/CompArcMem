@@ -61,13 +61,131 @@ wire [29:0] obs_l2_req_addr;
 wire obs_wb_valid;
 wire [29:0] obs_wb_addr;
 
-assign adder_sum_export = {
-    2'b0,
-    obs_wb_valid,
-    obs_l2_req_valid,
-    obs_wb_addr,
-    obs_cache_ret_data[29:0]
-};
+// ── Sticky status register ───────────────────────────────────────────────
+// obs_l2_req_valid, obs_wb_valid, and obs_cache_ret_valid are single-cycle
+// pulses at 50 MHz (20 ns).  The HPS polls at ms intervals and can never
+// catch a 1-cycle event via a combinational wire.  So we latch them here:
+//   bit 63     : ever saw a cache_ret_valid (L1 returned data to LSQ)
+//   bit 62     : ever saw obs_l2_req_valid  (L1 had a cache miss → L2)
+//   bit 61     : ever saw obs_wb_valid      (L1 wrote back dirty line)
+//   bit 60     : ever saw l2_ext_rd_req     (L2 miss → DDR3 fetch)
+//   bit 59     : ever saw avm_read asserted (Avalon master started DDR3 read)
+//   bit 58     : ever saw !avm_waitrequest while avm_read (bridge accepted beat)
+//   bit 57     : ever saw avm_readdatavalid (bridge returned data)
+//   bits 56:30 : obs_wb_addr[26:0] latched at last wb_valid pulse
+//   bits 29:0  : obs_cache_ret_data[29:0] latched at last cache_ret_valid
+//
+// Clear all sticky bits by writing 0xFFFFFFFF_FFFFFFFF to adder_b (the
+// "all-ones" sentinel is never a valid trace packet because op=7,id=15 is
+// the NOP sentinel with value_valid=1 and all value bits set, which is
+// distinguishable; the clear fires when adder_b[63:57] == 7'b1111111).
+reg [63:0] status_sticky;
+wire clear_status = (adder_b_export[63:57] == 7'b1111111);
+
+always @(posedge fpga_clk_50 or negedge hps_fpga_reset_n) begin
+    if (!hps_fpga_reset_n) begin
+        status_sticky <= 64'h0;
+    end else if (clear_status) begin
+        status_sticky <= 64'h0;
+    end else begin
+        if (obs_cache_ret_valid) begin
+            status_sticky[63]    <= 1'b1;
+            status_sticky[29:0]  <= obs_cache_ret_data[29:0];
+        end
+        if (obs_l2_req_valid) begin
+            status_sticky[62]    <= 1'b1;
+        end
+        if (obs_wb_valid) begin
+            status_sticky[61]    <= 1'b1;
+            status_sticky[56:30] <= obs_wb_addr[26:0];
+        end
+        if (l2_ext_rd_req) begin
+            status_sticky[60]    <= 1'b1;
+        end
+        // Avalon DDR3 path diagnostics
+        if (avm_read) begin
+            status_sticky[59]    <= 1'b1;
+        end
+        if (avm_read && !avm_waitrequest) begin
+            status_sticky[58]    <= 1'b1;
+        end
+        if (avm_readdatavalid) begin
+            status_sticky[57]    <= 1'b1;
+        end
+    end
+end
+
+assign adder_sum_export = status_sticky;
+
+// ── Cache-level LED indicators ───────────────────────────────────────────
+// After a memory request completes, show which level served it:
+//   LED[0] = L1 hit   (data was in L1 cache)
+//   LED[1] = L2 hit   (L1 missed, L2 had it)
+//   LED[2] = DDR3     (both L1 and L2 missed, fetched from DDR3)
+//   LED[7] = heartbeat (~1 Hz blink, shows FPGA is alive)
+//
+// LEDs are held for 0.5 seconds so the result is visible.
+reg       saw_l2_req;
+reg       saw_ddr3_req;
+reg [2:0] led_level;
+reg [24:0] led_hold;
+localparam [24:0] LED_HOLD_TIME = 25'd25_000_000; // 0.5s at 50 MHz
+
+always @(posedge fpga_clk_50 or negedge hps_fpga_reset_n) begin
+    if (!hps_fpga_reset_n) begin
+        saw_l2_req   <= 1'b0;
+        saw_ddr3_req <= 1'b0;
+        led_level    <= 3'b000;
+        led_hold     <= 25'd0;
+    end else if (clear_status) begin
+        saw_l2_req   <= 1'b0;
+        saw_ddr3_req <= 1'b0;
+        led_level    <= 3'b000;
+        led_hold     <= 25'd0;
+    end else begin
+        // Track L1 miss (→ L2 request)
+        if (obs_l2_req_valid)
+            saw_l2_req <= 1'b1;
+
+        // Track L2 miss (→ DDR3 request)
+        if (l2_ext_rd_req)
+            saw_ddr3_req <= 1'b1;
+
+        // When data returns, classify and light LED
+        if (obs_cache_ret_valid) begin
+            if (!saw_l2_req)
+                led_level <= 3'b001;   // L1 hit
+            else if (!saw_ddr3_req)
+                led_level <= 3'b010;   // L2 hit
+            else
+                led_level <= 3'b100;   // DDR3 fetch
+
+            led_hold     <= LED_HOLD_TIME;
+            saw_l2_req   <= 1'b0;
+            saw_ddr3_req <= 1'b0;
+        end
+
+        // Countdown hold timer
+        if (led_hold > 25'd0)
+            led_hold <= led_hold - 25'd1;
+    end
+end
+
+// Heartbeat on LED[7] (~1 Hz blink)
+reg [25:0] heartbeat_cnt;
+always @(posedge fpga_clk_50 or negedge hps_fpga_reset_n) begin
+    if (!hps_fpga_reset_n) heartbeat_cnt <= 26'd0;
+    else                   heartbeat_cnt <= heartbeat_cnt + 26'd1;
+end
+
+assign LED[0] = (led_hold > 25'd0) ? led_level[0] : 1'b0;  // L1 hit
+assign LED[1] = (led_hold > 25'd0) ? led_level[1] : 1'b0;  // L2 hit
+assign LED[2] = (led_hold > 25'd0) ? led_level[2] : 1'b0;  // DDR3
+assign LED[3] = 1'b0;
+assign LED[4] = 1'b0;
+assign LED[5] = 1'b0;
+assign LED[6] = 1'b0;
+assign LED[7] = heartbeat_cnt[25];  // ~1 Hz heartbeat
 
 // L2 <-> Avalon memory master wires
 wire         l2_ext_rd_req;
@@ -185,7 +303,5 @@ soc_system u0(
                .memory_oct_rzqin(HPS_DDR3_RZQ),
                .hps_0_h2f_reset_reset_n(hps_fpga_reset_n)
            );
-
-assign LED = {7'b0, obs_cache_ret_valid};
 
 endmodule

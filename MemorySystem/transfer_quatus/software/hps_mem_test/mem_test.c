@@ -111,17 +111,36 @@ static uint64_t read_status(void)
     return *reg_sum;
 }
 
+/* Clear the sticky status bits by writing the all-1s sentinel to adder_b */
+static void clear_status(void)
+{
+    *reg_b = 0xFFFFFFFFFFFFFFFEULL;   /* bits[63:57]=1111111, triggers clear */
+    __asm__ __volatile__("dsb" ::: "memory");
+    *reg_b = 0;                        /* clear the sentinel so it doesn't persist */
+    __asm__ __volatile__("dsb" ::: "memory");
+}
+
 static void print_status(const char *tag)
 {
     uint64_t s = read_status();
-    uint32_t ret_data   = (uint32_t)(s & 0x3FFFFFFF);
-    uint32_t wb_addr    = (uint32_t)((s >> 30) & 0x3FFFFFFF);
-    int      l2_req_val = (int)((s >> 60) & 1);
-    int      wb_val     = (int)((s >> 61) & 1);
+    /* New sticky bit layout (after DE10_NANO_SoC_GHRD.v fix):
+     *   bit 63 : ever cache_ret_valid (L1 returned data to LSQ)
+     *   bit 62 : ever l2_req_valid    (L1 miss fired → L2 request)
+     *   bit 61 : ever wb_valid        (dirty writeback from L1)
+     *   bit 60 : reserved
+     *   59:30  : wb_addr at last writeback
+     *   29:0   : cache_ret_data[29:0] at last cache return
+     */
+    uint32_t ret_data      = (uint32_t)(s & 0x3FFFFFFF);
+    uint32_t wb_addr       = (uint32_t)((s >> 30) & 0x3FFFFFFF);
+    int      wb_seen       = (int)((s >> 61) & 1);
+    int      l2_req_seen   = (int)((s >> 62) & 1);
+    int      cache_seen    = (int)((s >> 63) & 1);
 
     printf("[%s] status=0x%016llx  ret_data=0x%08x  wb_addr=0x%08x  "
-           "l2_req=%d  wb=%d\n",
-           tag, (unsigned long long)s, ret_data, wb_addr, l2_req_val, wb_val);
+           "l2_miss_seen=%d  wb_seen=%d  cache_ret_seen=%d\n",
+           tag, (unsigned long long)s, ret_data, wb_addr,
+           l2_req_seen, wb_seen, cache_seen);
 }
 
 /* ------------------------------------------------------------------ */
@@ -132,6 +151,7 @@ static void smoke_test(void)
     uint64_t a, b;
 
     printf("=== Smoke Test ===\n");
+    clear_status();            /* reset all sticky bits before starting */
     print_status("before");
 
     /* 1. Clear: write a NOP-like line (op=7 unused, id=15) to set trace_id_prev */
@@ -208,6 +228,7 @@ static void replay_trace(const char *path, int delay_us)
     uint64_t a, b;
 
     printf("=== Replaying trace: %s  (delay=%d us) ===\n", path, delay_us);
+    clear_status();            /* reset sticky bits before replaying */
     print_status("start");
 
     while (fread(buf, TRACE_RECORD_SIZE, 1, f) == 1) {
