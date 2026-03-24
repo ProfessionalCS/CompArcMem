@@ -95,10 +95,17 @@ logic [3:0]            mem_counter;
 logic [23:0]           mem_pend_addr;
 logic [MSHR_ID_W-1:0] mem_pend_id;
 
-// ━━━ Avalon-mode eviction FIFO (up to 2 pending dirty writebacks) ━━━━━━━
-logic         evict_pending;
-logic [23:0]  evict_addr;
-logic [511:0] evict_data;
+// ━━━ Avalon-mode eviction FIFO (2 pending dirty writebacks) ━━━━━━━━━━━━━
+// Two-entry FIFO prevents data loss when a refill eviction and a writeback
+// eviction both need to write to DDR3 in the same cycle.
+logic [1:0]   evict_valid;     // valid bits for entries 0 and 1
+logic [23:0]  evict_addr  [0:1];
+logic [511:0] evict_data  [0:1];
+logic         evict_pending;   // convenience: any entry valid
+assign evict_pending = |evict_valid;
+// Full: can't accept another eviction
+logic         evict_full;
+assign evict_full = &evict_valid;
 
 // Avalon-mode: remember that ext_mem_rd_valid arrived during refill
 logic         avm_rd_arrived;
@@ -226,9 +233,11 @@ always_ff @(posedge clk or negedge rst_n) begin
         mem_counter    <= '0;
         mem_pend_addr  <= '0;
         mem_pend_id    <= '0;
-        evict_pending  <= 1'b0;
-        evict_addr     <= '0;
-        evict_data     <= '0;
+        evict_valid    <= 2'b00;
+        evict_addr[0]  <= '0;
+        evict_addr[1]  <= '0;
+        evict_data[0]  <= '0;
+        evict_data[1]  <= '0;
         avm_rd_arrived <= 1'b0;
         ext_mem_rd_req  <= 1'b0;
         ext_mem_rd_addr <= '0;
@@ -314,9 +323,15 @@ always_ff @(posedge clk or negedge rst_n) begin
                 evict_blk_local = {tag_array[fill_way][fill_idx], fill_idx};
                 if (USE_AVALON) begin
                     // Buffer the eviction — drain in section F
-                    evict_pending <= 1'b1;
-                    evict_addr    <= evict_blk_local;
-                    evict_data    <= data_array[fill_way][fill_idx];
+                    if (!evict_valid[0]) begin
+                        evict_valid[0] <= 1'b1;
+                        evict_addr[0]  <= evict_blk_local;
+                        evict_data[0]  <= data_array[fill_way][fill_idx];
+                    end else begin
+                        evict_valid[1] <= 1'b1;
+                        evict_addr[1]  <= evict_blk_local;
+                        evict_data[1]  <= data_array[fill_way][fill_idx];
+                    end
                 end else begin
                     backing_mem[evict_blk_local[MEM_IDX_W-1:0]] <= data_array[fill_way][fill_idx];
                 end
@@ -441,9 +456,15 @@ always_ff @(posedge clk or negedge rst_n) begin
                         logic [23:0] evblk;
                         evblk = {tag_array[wb_way][s1_wb_idx], s1_wb_idx};
                         if (USE_AVALON) begin
-                            evict_pending <= 1'b1;
-                            evict_addr    <= evblk;
-                            evict_data    <= data_array[wb_way][s1_wb_idx];
+                            if (!evict_valid[0]) begin
+                                evict_valid[0] <= 1'b1;
+                                evict_addr[0]  <= evblk;
+                                evict_data[0]  <= data_array[wb_way][s1_wb_idx];
+                            end else begin
+                                evict_valid[1] <= 1'b1;
+                                evict_addr[1]  <= evblk;
+                                evict_data[1]  <= data_array[wb_way][s1_wb_idx];
+                            end
                         end else begin
                             backing_mem[evblk[MEM_IDX_W-1:0]] <= data_array[wb_way][s1_wb_idx];
                         end
@@ -496,9 +517,15 @@ always_ff @(posedge clk or negedge rst_n) begin
                     logic [23:0] evblk;
                     evblk = {tag_array[dw][dwb_idx], dwb_idx};
                     if (USE_AVALON) begin
-                        evict_pending <= 1'b1;
-                        evict_addr    <= evblk;
-                        evict_data    <= data_array[dw][dwb_idx];
+                        if (!evict_valid[0]) begin
+                            evict_valid[0] <= 1'b1;
+                            evict_addr[0]  <= evblk;
+                            evict_data[0]  <= data_array[dw][dwb_idx];
+                        end else begin
+                            evict_valid[1] <= 1'b1;
+                            evict_addr[1]  <= evblk;
+                            evict_data[1]  <= data_array[dw][dwb_idx];
+                        end
                     end else begin
                         backing_mem[evblk[MEM_IDX_W-1:0]] <= data_array[dw][dwb_idx];
                     end
@@ -518,12 +545,16 @@ always_ff @(posedge clk or negedge rst_n) begin
         //     Avalon mode: also drain the eviction buffer when master idle
         // ════════════════════════════════════════════════════════════════
         if (USE_AVALON) begin
-            // --- Avalon mode: drain eviction buffer first, then issue reads ---
-            if (evict_pending && !ext_mem_busy) begin
+            // --- Avalon mode: drain eviction FIFO first, then issue reads ---
+            if (evict_valid[0] && !ext_mem_busy) begin
                 ext_mem_wr_req  <= 1'b1;
-                ext_mem_wr_addr <= evict_addr;
-                ext_mem_wr_data <= evict_data;
-                evict_pending   <= 1'b0;
+                ext_mem_wr_addr <= evict_addr[0];
+                ext_mem_wr_data <= evict_data[0];
+                // Shift entry 1 → entry 0
+                evict_valid[0]  <= evict_valid[1];
+                evict_addr[0]   <= evict_addr[1];
+                evict_data[0]   <= evict_data[1];
+                evict_valid[1]  <= 1'b0;
             end else if (!mem_busy && !ext_mem_busy && !evict_pending) begin
                 logic issued;
                 issued = 1'b0;

@@ -48,10 +48,11 @@ module dummy_L2 (
             req_addr_d <= '0;
             l2_resp_valid <= 1'b0;
             l2_resp_data <= '0;
-            for (int i = 0; i < MEM_LINES; i++) begin
-                line_valid[i] = 1'b0;
-                line_mem[i] = '0;
-            end
+            // NOTE: line_valid and line_mem are NOT cleared on reset.
+            // In a real system, DDR3 retains data across resets.
+            // Only full power-down should clear memory. 
+            // This allows test sequences like "store → evict → reset → load"
+            // to verify DDR3 data persistence correctly.
         end else begin
             req_d <= l2_req_valid;
             req_addr_d <= l2_req_addr;

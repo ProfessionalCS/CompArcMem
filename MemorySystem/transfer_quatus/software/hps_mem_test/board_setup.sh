@@ -1,6 +1,6 @@
 #!/bin/bash
-# ═══════════════════════════════════════════════════════════════════════════
-# board_setup.sh — Runs ON the DE10-Nano to (re)initialize everything.
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# board_setup.sh â€” Runs ON the DE10-Nano to (re)initialize everything.
 #
 # Handles:
 #   1. Compile all programs from source (if .c files are present)
@@ -14,17 +14,17 @@
 #
 # Usage (from host WSL):
 #   sshpass -p root ssh root@192.168.0.2 "cd /root/deploy && bash board_setup.sh"
-# ═══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 set -e
 DEPLOY=/root/deploy
 cd "$DEPLOY"
 
-echo "╔══════════════════════════════════════════════════╗"
-echo "║  DE10-Nano Board Setup (running on-board)        ║"
-echo "╚══════════════════════════════════════════════════╝"
+echo "â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—"
+echo "â•‘  DE10-Nano Board Setup (running on-board)        â•‘"
+echo "â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
 
-# ── Step 1: Compile programs ────────────────────────────────────────────
+# â”€â”€ Step 1: Compile programs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[1] Compiling programs ..."
 BUILT=0 SKIPPED=0
@@ -59,7 +59,7 @@ echo "  Compiled $BUILT, skipped $SKIPPED"
 # Require fix_bridges at minimum
 [ -f fix_bridges ] || { echo "ABORT: fix_bridges binary missing and could not be built."; exit 1; }
 
-# ── Step 2: Install systemd auto-bridge service ─────────────────────────
+# â”€â”€ Step 2: Install systemd auto-bridge service â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[2] Installing fpga-bridges.service ..."
 
@@ -96,7 +96,7 @@ SVC
 systemctl daemon-reload
 systemctl enable fpga-bridges.service 2>/dev/null && echo "  fpga-bridges.service enabled (will run on next boot)"
 
-# ── Step 3: Install RBF + patch DTB (if RBF present) ───────────────────
+# â”€â”€ Step 3: Install RBF + patch DTB (if RBF present) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[3] Boot partition (DTB + RBF) ..."
 
@@ -108,18 +108,18 @@ _boot_partition_setup() {
 
     mkdir -p /mnt/bootfat
     umount /mnt/bootfat 2>/dev/null || true
-    mount /dev/mmcblk0p1 /mnt/bootfat || { echo "  WARN: could not mount boot FAT — skipping"; return 0; }
+    mount /dev/mmcblk0p1 /mnt/bootfat || { echo "  WARN: could not mount boot FAT â€” skipping"; return 0; }
 
     DTB=/mnt/bootfat/socfpga_cyclone5_de0_nano_soc.dtb
     if [ ! -f "$DTB" ]; then
-        echo "  WARN: DTB not found on boot partition — skipping patch"
+        echo "  WARN: DTB not found on boot partition â€” skipping patch"
     else
         # Backup original DTB exactly once
         [ -f "${DTB}.orig" ] || { cp "$DTB" "${DTB}.orig"; echo "  Backed up original DTB"; }
 
-        # Patch DTB: disabled → okay + bridge-enable (skip if dtc unavailable or already patched)
+        # Patch DTB: disabled â†’ okay + bridge-enable (skip if dtc unavailable or already patched)
         if command -v dtc > /dev/null 2>&1; then
-            dtc -I dtb -O dts -o /tmp/_setup.dts "$DTB" 2>/dev/null || { echo "  WARN: dtc decompile failed — skipping DTB patch"; umount /mnt/bootfat; return 0; }
+            dtc -I dtb -O dts -o /tmp/_setup.dts "$DTB" 2>/dev/null || { echo "  WARN: dtc decompile failed â€” skipping DTB patch"; umount /mnt/bootfat; return 0; }
             sed -i 's/status = "disabled"/status = "okay"/g' /tmp/_setup.dts
             awk '
 /fpga-bridge@ff400000|fpga-bridge@ff500000|fpga-bridge@ff600000|fpga2sdram/ { in_bridge=1 }
@@ -132,11 +132,11 @@ _boot_partition_setup() {
                 cp /tmp/_setup.dtb "$DTB"
                 echo "  DTB patched (bridges enabled)"
             else
-                echo "  WARN: dtc recompile failed — keeping existing DTB"
+                echo "  WARN: dtc recompile failed â€” keeping existing DTB"
             fi
             rm -f /tmp/_setup.dts /tmp/_setup_fixed.dts /tmp/_setup.dtb
         else
-            echo "  INFO: dtc not available — DTB not patched (fix_bridges handles bridges)"
+            echo "  INFO: dtc not available â€” DTB not patched (fix_bridges handles bridges)"
         fi
     fi
 
@@ -150,12 +150,12 @@ _boot_partition_setup() {
 
 _boot_partition_setup || echo "  WARN: boot partition step had errors (non-fatal)"
 
-# ── Step 4: Enable bridges RIGHT NOW ────────────────────────────────────
+# â”€â”€ Step 4: Enable bridges RIGHT NOW â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[4] Enabling FPGA bridges (fix_bridges) ..."
 /root/deploy/fix_bridges
 
-# ── Step 5: Show status ─────────────────────────────────────────────────
+# â”€â”€ Step 5: Show status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[5] Hardware status ..."
 echo "  FPGA:    $(cat /sys/class/fpga_manager/fpga0/state 2>/dev/null || echo UNKNOWN)"
@@ -164,7 +164,7 @@ for br in br0 br1 br2 br3; do
 done
 echo "  Service: $(systemctl is-active fpga-bridges.service 2>/dev/null || echo not-installed)"
 
-# ── Step 6: Smoke test (quick sanity) ──────────────────────────────────
+# â”€â”€ Step 6: Smoke test (quick sanity) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[6] Smoke test ..."
 if [ ! -f /root/deploy/mem_test ]; then
@@ -173,7 +173,7 @@ else
     /root/deploy/mem_test smoke
 fi
 
-# ── Step 7: Full correctness test ───────────────────────────────────────
+# â”€â”€ Step 7: Full correctness test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[7] Correctness test (manual_test clean test) ..."
 if [ ! -f /root/deploy/manual_test ]; then
@@ -183,9 +183,9 @@ else
 fi
 
 echo ""
-echo "╔══════════════════════════════════════════════════╗"
-echo "║  BOARD SETUP COMPLETE                            ║"
-echo "╚══════════════════════════════════════════════════╝"
+echo "â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—"
+echo "â•‘  BOARD SETUP COMPLETE                            â•‘"
+echo "â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
 echo ""
 echo "Bridges are enabled.  Service will auto-fix on next reboot."
 echo "To re-run at any time:  cd /root/deploy && bash board_setup.sh"

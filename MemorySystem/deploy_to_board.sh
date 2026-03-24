@@ -1,6 +1,6 @@
 #!/bin/bash
-# ═══════════════════════════════════════════════════════════════════════════
-# deploy_to_board.sh — Full DE10-Nano deployment (DTB + RBF + auto-bridge)
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# deploy_to_board.sh â€” Full DE10-Nano deployment (DTB + RBF + auto-bridge)
 #
 # Run from WSL Ubuntu on the host PC (inside MemorySystem/).
 #
@@ -13,27 +13,35 @@
 #
 # After this script succeeds the board will auto-fix bridges on every boot.
 #
-# Prerequisites: sshpass (sudo apt install sshpass)
+# Prerequisites: sshpass is optional; without it the script falls back to
+# interactive ssh/scp password prompts.
 # Usage:  bash deploy_to_board.sh
-# ═══════════════════════════════════════════════════════════════════════════
+# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 set -e
 
 BOARD_IP="${BOARD_IP:-192.168.0.2}"
 BOARD_USER="${BOARD_USER:-root}"
 BOARD_PASS="${BOARD_PASS:-root}"
-SSH="sshpass -p $BOARD_PASS ssh -o StrictHostKeyChecking=no $BOARD_USER@$BOARD_IP"
-SCP="sshpass -p $BOARD_PASS scp -o StrictHostKeyChecking=no"
+SSH_OPTS="-o StrictHostKeyChecking=no"
+if command -v sshpass > /dev/null 2>&1; then
+    SSH="sshpass -p $BOARD_PASS ssh $SSH_OPTS $BOARD_USER@$BOARD_IP"
+    SCP="sshpass -p $BOARD_PASS scp $SSH_OPTS"
+else
+    SSH="ssh $SSH_OPTS $BOARD_USER@$BOARD_IP"
+    SCP="scp $SSH_OPTS"
+    echo "INFO: sshpass not found; using interactive ssh/scp password prompts."
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 HPS_DIR="$SCRIPT_DIR/transfer_quatus/software/hps_mem_test"
 RBF="$SCRIPT_DIR/transfer_quatus/output_files/soc_system.rbf"
 TRACE="$SCRIPT_DIR/mem-traces-v2/traces/dgemm3_lsq88.bin"
 
-echo "╔══════════════════════════════════════════════════╗"
-echo "║  DE10-Nano Full Deployment                       ║"
-echo "╚══════════════════════════════════════════════════╝"
+echo "â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—"
+echo "â•‘  DE10-Nano Full Deployment                       â•‘"
+echo "â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
 
-# ── Step 0: Pre-flight checks ───────────────────────────────────────────
+# â”€â”€ Step 0: Pre-flight checks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[Step 0] Pre-flight checks ..."
 FAIL=0
@@ -53,7 +61,7 @@ for i in 1 2 3; do
 done
 echo "  Board is reachable."
 
-# ── Step 1: Upload files ────────────────────────────────────────────────
+# â”€â”€ Step 1: Upload files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[Step 1] Uploading files to board ..."
 $SSH "mkdir -p /root/deploy"
@@ -69,7 +77,7 @@ echo "  HPS source files + board_setup.sh"
 
 [ -f "$TRACE" ] && $SCP "$TRACE" "$BOARD_USER@$BOARD_IP:/root/deploy/" && echo "  trace file"
 
-# ── Step 2: Compile on board ────────────────────────────────────────────
+# â”€â”€ Step 2: Compile on board â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[Step 2] Compiling on board ..."
 $SSH 'cd /root/deploy &&
@@ -83,7 +91,7 @@ $SSH 'cd /root/deploy &&
   cp devmem2 /usr/local/bin/devmem2 2>/dev/null || true &&
   echo BUILD_OK'
 
-# ── Step 3: Fix DTB + install RBF on boot partition ─────────────────────
+# â”€â”€ Step 3: Fix DTB + install RBF on boot partition â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[Step 3] Patching DTB + installing RBF ..."
 $SSH 'bash -s' << 'REMOTE_BOOT'
@@ -98,7 +106,7 @@ DTB=/mnt/bootfat/socfpga_cyclone5_de0_nano_soc.dtb
 # Keep original backup (only first time ever)
 [ -f "${DTB}.orig" ] || cp "$DTB" "${DTB}.orig"
 
-# Decompile → fix → recompile
+# Decompile â†’ fix â†’ recompile
 dtc -I dtb -O dts -o /tmp/_deploy.dts "$DTB" 2>/dev/null
 sed -i 's/status = "disabled"/status = "okay"/g' /tmp/_deploy.dts
 
@@ -129,7 +137,7 @@ rm -f /tmp/_deploy.dts /tmp/_deploy_fixed.dts /tmp/_deploy.dtb
 echo "  Boot partition synced + unmounted"
 REMOTE_BOOT
 
-# ── Step 4: Install systemd auto-bridge service ─────────────────────────
+# â”€â”€ Step 4: Install systemd auto-bridge service â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[Step 4] Installing auto-bridge-fix service ..."
 $SSH 'bash -s' << 'REMOTE_SVC'
@@ -170,7 +178,7 @@ systemctl enable fpga-bridges.service 2>/dev/null
 echo "  fpga-bridges.service installed + enabled"
 REMOTE_SVC
 
-# ── Step 5: Reboot ──────────────────────────────────────────────────────
+# â”€â”€ Step 5: Reboot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[Step 5] Rebooting ..."
 $SSH "sync; reboot" 2>/dev/null || true
@@ -187,7 +195,7 @@ for i in $(seq 1 20); do
 done
 sleep 5   # let SSH daemon start
 
-# ── Step 6: Post-boot verification ──────────────────────────────────────
+# â”€â”€ Step 6: Post-boot verification â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[Step 6] Verifying ..."
 
@@ -200,9 +208,9 @@ echo "  Bridge service: $SVC_OK"
 # Show bridge log
 $SSH "cat /root/deploy/bridge_boot.log 2>/dev/null" || true
 
-# Verify H2F is accessible — if not, run fix_bridges one more time
+# Verify H2F is accessible â€” if not, run fix_bridges one more time
 if ! $SSH "cd /root/deploy && ./test_h2f 2>&1" > /dev/null 2>&1; then
-    echo "  H2F not ready yet — running fix_bridges ..."
+    echo "  H2F not ready yet â€” running fix_bridges ..."
     $SSH "cd /root/deploy && ./fix_bridges 2>&1"
 fi
 
@@ -213,15 +221,15 @@ for br in br0 br1 br2 br3; do
     echo "    $br: $STATE"
 done
 
-# ── Step 7: Smoke test ──────────────────────────────────────────────────
+# â”€â”€ Step 7: Smoke test â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 echo ""
 echo "[Step 7] Smoke test ..."
 $SSH "cd /root/deploy && ./mem_test smoke 2>&1"
 
 echo ""
-echo "╔══════════════════════════════════════════════════╗"
-echo "║  DEPLOYMENT COMPLETE                             ║"
-echo "╚══════════════════════════════════════════════════╝"
+echo "â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—"
+echo "â•‘  DEPLOYMENT COMPLETE                             â•‘"
+echo "â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•"
 echo ""
 echo "Board is live at $BOARD_IP.  Quick commands:"
 echo "  make board-smoke      # smoke test"

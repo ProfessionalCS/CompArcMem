@@ -95,6 +95,13 @@ wire [63:0] wr_word = req_wr_data[beat_cnt*64 +: 64];
 assign mem_busy = (state != S_IDLE);
 
 // ── Main FSM ────────────────────────────────────────────────────────────
+// Write-settle counter: after all 8 write-beats are accepted by the bridge,
+// wait a few cycles before returning to IDLE so the downstream AXI fabric
+// has time to commit the writes to SDRAM.  Without this, a following read
+// to the same address can return stale DDR3 data.
+localparam [3:0] WR_SETTLE_CYCLES = 4'd8;
+logic [3:0] wr_settle_cnt;
+
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
         state          <= S_IDLE;
@@ -110,16 +117,19 @@ always_ff @(posedge clk or negedge rst_n) begin
         avm_write      <= 1'b0;
         avm_writedata  <= '0;
         avm_byteenable <= '0;
+        wr_settle_cnt  <= '0;
     end else begin
         // One-cycle pulses — clear by default
         mem_rd_valid <= 1'b0;
         mem_wr_done  <= 1'b0;
 
+        // Explicit defaults: deassert bus when not driving
+        avm_read  <= 1'b0;
+        avm_write <= 1'b0;
+
         case (state)
         // ─────────────────────────────────────────────────────────────
         S_IDLE: begin
-            avm_read  <= 1'b0;
-            avm_write <= 1'b0;
             beat_cnt  <= 3'd0;
             if (mem_rd_req) begin
                 req_block_addr <= mem_rd_addr;
@@ -137,7 +147,6 @@ always_ff @(posedge clk or negedge rst_n) begin
         S_RD_ISSUE: begin
             avm_address    <= beat_addr;
             avm_read       <= 1'b1;
-            avm_write      <= 1'b0;
             avm_byteenable <= 8'hFF;
             // When slave accepts (waitrequest deasserted), stop driving read
             if (avm_read && !avm_waitrequest) begin
@@ -148,7 +157,6 @@ always_ff @(posedge clk or negedge rst_n) begin
 
         // Wait for readdatavalid
         S_RD_WAIT: begin
-            avm_read <= 1'b0;
             if (avm_readdatavalid) begin
                 rd_line[beat_cnt*64 +: 64] <= avm_readdata;
                 if (beat_cnt == 3'd7) begin
@@ -172,14 +180,14 @@ always_ff @(posedge clk or negedge rst_n) begin
         S_WR_ISSUE: begin
             avm_address    <= beat_addr;
             avm_write      <= 1'b1;
-            avm_read       <= 1'b0;
             avm_writedata  <= wr_word;
             avm_byteenable <= 8'hFF;
             // When slave accepts (waitrequest deasserted), move to next beat
             if (avm_write && !avm_waitrequest) begin
                 avm_write <= 1'b0;
                 if (beat_cnt == 3'd7) begin
-                    state <= S_WR_DONE;
+                    wr_settle_cnt <= WR_SETTLE_CYCLES;
+                    state         <= S_WR_DONE;
                 end else begin
                     beat_cnt <= beat_cnt + 3'd1;
                     // Stay in S_WR_ISSUE for next beat
@@ -187,10 +195,14 @@ always_ff @(posedge clk or negedge rst_n) begin
             end
         end
 
-        // Signal write completion to L2
+        // Signal write completion to L2 after settle period
         S_WR_DONE: begin
-            mem_wr_done <= 1'b1;
-            state       <= S_IDLE;
+            if (wr_settle_cnt > 0) begin
+                wr_settle_cnt <= wr_settle_cnt - 4'd1;
+            end else begin
+                mem_wr_done <= 1'b1;
+                state       <= S_IDLE;
+            end
         end
 
         default: state <= S_IDLE;

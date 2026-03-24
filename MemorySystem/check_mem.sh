@@ -1,5 +1,17 @@
 #!/bin/bash
-sshpass -p root ssh -o StrictHostKeyChecking=no root@192.168.0.2 << 'EOF'
+set -e
+
+BOARD_IP="${BOARD_IP:-192.168.0.2}"
+BOARD_USER="${BOARD_USER:-root}"
+BOARD_PASS="${BOARD_PASS:-root}"
+
+if command -v sshpass > /dev/null 2>&1; then
+    SSH="sshpass -p $BOARD_PASS ssh -o StrictHostKeyChecking=no $BOARD_USER@$BOARD_IP"
+else
+    SSH="ssh -o StrictHostKeyChecking=no $BOARD_USER@$BOARD_IP"
+fi
+
+$SSH << 'EOF'
 echo "=== /proc/iomem ==="
 cat /proc/iomem
 echo ""

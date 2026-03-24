@@ -184,10 +184,12 @@ static uint8_t get_id(void)
     return id;
 }
 
-/* ── TLB page tracking (avoid redundant fills) ──────────────────────── */
-#define MAX_PAGES 256
+/* ── TLB page tracking (match HW TLB capacity: 16 entries, PLRU) ───── */
+#define HW_TLB_ENTRIES  16            /* must match dtlb.sv NUM_ENTRIES */
+#define MAX_PAGES       HW_TLB_ENTRIES
 static uint64_t filled_pages[MAX_PAGES];
 static int num_filled = 0;
+static int fill_ptr   = 0;           /* circular pointer for FIFO eviction */
 
 static int page_filled(uint64_t page)
 {
@@ -209,8 +211,13 @@ static void fill_tlb_page(uint64_t vaddr)
     send_trace(a, b);
     usleep(500);
 
-    if (num_filled < MAX_PAGES)
+    /* Track in FIFO ring matching HW TLB capacity */
+    if (num_filled < MAX_PAGES) {
         filled_pages[num_filled++] = page;
+    } else {
+        filled_pages[fill_ptr] = page;
+        fill_ptr = (fill_ptr + 1) % MAX_PAGES;
+    }
 
     printf("  [TLB] filled page vaddr=0x%06llx → paddr=0x%08llx\n",
            (unsigned long long)page, (unsigned long long)paddr);
@@ -292,6 +299,7 @@ static void run_test(int clean)
     /* Reset starting ID so each test run is deterministic */
     next_id = 1;
     num_filled = 0;
+    fill_ptr   = 0;
 
     /* --- Test 1: Basic store/load --------------------------------------- */
     printf("[Test 1] Basic store + load\n");

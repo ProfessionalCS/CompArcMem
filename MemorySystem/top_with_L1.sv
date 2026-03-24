@@ -21,6 +21,7 @@ module top_with_L1 #(
     output logic [63:0] obs_cache_wdata,
     output logic obs_cache_ret_valid,
     output logic [63:0] obs_cache_ret_data,
+    output logic obs_cache_ret_is_load,
     output logic obs_l2_req_valid,
     output logic [29:0] obs_l2_req_addr,
     output logic obs_wb_valid,
@@ -64,6 +65,9 @@ module top_with_L1 #(
     logic [29:0]  wb_addr;
     logic [511:0] wb_data;
 
+    // L1 load-response indicator
+    logic         cache_ret_is_load;
+
     assign obs_tlb_req = tlb_req;
     assign obs_cache_req = cache_req;
     assign obs_cache_we = cache_we;
@@ -71,6 +75,7 @@ module top_with_L1 #(
     assign obs_cache_wdata = cache_wdata;
     assign obs_cache_ret_valid = cache_ret_valid;
     assign obs_cache_ret_data = cache_ret_data;
+    assign obs_cache_ret_is_load = cache_ret_is_load;
     assign obs_l2_req_valid = l2_req_valid;
     assign obs_l2_req_addr = l2_req_addr;
     assign obs_wb_valid = wb_valid;
@@ -123,6 +128,7 @@ module top_with_L1 #(
         .req_wdata(cache_wdata),
         .resp_valid(cache_ret_valid),
         .resp_rdata(cache_ret_data),
+        .resp_is_load(cache_ret_is_load),
         .l2_req_valid(l2_req_valid),
         .l2_req_addr(l2_req_addr),
         .l2_resp_valid(l2_resp_valid),

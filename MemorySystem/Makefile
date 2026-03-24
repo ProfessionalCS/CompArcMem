@@ -150,8 +150,15 @@ BOARD_USER ?= root
 BOARD_PASS ?= root
 
 # SSH/SCP shortcuts
-SSH := sshpass -p $(BOARD_PASS) ssh -o StrictHostKeyChecking=no $(BOARD_USER)@$(BOARD_IP)
-BSCP := sshpass -p $(BOARD_PASS) scp -o StrictHostKeyChecking=no
+SSHPASS := $(shell command -v sshpass 2>/dev/null)
+
+ifeq ($(strip $(SSHPASS)),)
+SSH  := ssh -o StrictHostKeyChecking=no $(BOARD_USER)@$(BOARD_IP)
+BSCP := scp -o StrictHostKeyChecking=no
+else
+SSH  := $(SSHPASS) -p $(BOARD_PASS) ssh -o StrictHostKeyChecking=no $(BOARD_USER)@$(BOARD_IP)
+BSCP := $(SSHPASS) -p $(BOARD_PASS) scp -o StrictHostKeyChecking=no
+endif
 
 # ── Deploy to DE10-Nano (full: DTB + RBF + auto-bridge + reboot) ────────
 .PHONY: deploy
@@ -299,7 +306,7 @@ board-devmem:
 # ── Board SSH (interactive shell) ────────────────────────────────────────
 .PHONY: board-ssh
 board-ssh:
-	sshpass -p $(BOARD_PASS) ssh -o StrictHostKeyChecking=no $(BOARD_USER)@$(BOARD_IP)
+	$(SSH)
 
 # ── Clean ────────────────────────────────────────────────────────────────
 .PHONY: clean
