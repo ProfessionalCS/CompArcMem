@@ -115,6 +115,7 @@ module lsq # (
     logic tlb_pending;                                      // TLB response is expected next cycle
     logic tlb_pending_is_load;                              // 1 = LOAD queue, 0 = STORE queue
     logic [$clog2(LOAD_QUEUE_SIZE)-1:0] tlb_pending_idx;    // queue slot of the entry awaiting translation
+    logic tlb_resp_valid;                                   // 1 cycle after tlb_req: DTLB registered output is now valid
 
     logic cache_pending;                                    // Wait on the cache
     logic [$clog2(LOAD_QUEUE_SIZE)-1:0] cache_pending_idx;  // LQ entry that is waiting for cache data (since stores are auto write back to the cache)
@@ -304,6 +305,7 @@ module lsq # (
             tlb_pending <= 0;   
             tlb_pending_is_load <= 0;
             tlb_pending_idx <= '0;
+            tlb_resp_valid <= 0;
 
             tlb_fill <= 1'b0;
             fill_tlb_paddr <= '0;
@@ -323,6 +325,7 @@ module lsq # (
             cache_req <= 0;
             tlb_req <= 0;
             tlb_fill <= 1'b0;
+            tlb_resp_valid <= tlb_req;  // DTLB output valid 1 cycle after request
 
             // 1. Handle loads after resolving store (handles the invalidation of all the loads)
             // A store has occurred, so invalidate all loads that are after this store
@@ -349,7 +352,7 @@ module lsq # (
             // On a hit: update the entry with the physical address
             // On a miss: invalidate the entry so it doesn't clog the queue
             //            (software-managed TLB: caller must fill TLB before access)
-            if (tlb_pending && tlb_hit) begin
+            if (tlb_pending && tlb_resp_valid && tlb_hit) begin
                 tlb_req <= 0;
                 tlb_pending <= 0;
 
@@ -381,7 +384,7 @@ module lsq # (
                     // The write is deferred to retirement so we only commit the youngest store to each address (WAW suppression)
                     // Writeback if non speculative
                 end
-            end else if (tlb_pending && !tlb_hit) begin
+            end else if (tlb_pending && tlb_resp_valid && !tlb_hit) begin
                 // TLB MISS: clear pending and invalidate the entry so it
                 // doesn't permanently clog the queue.  Software must fill
                 // the TLB and re-issue the operation.

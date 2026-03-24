@@ -59,10 +59,17 @@ int main() {
     /* ---- FPGA Manager ---- */
     volatile uint32_t *fpga = mmap(NULL, 0x1000, PROT_READ, MAP_SHARED, fd, 0xFF706000);
     if (fpga == MAP_FAILED) { msg("ERR: mmap fpgamgr\n"); return 1; }
-    snprintf(buf, sizeof(buf), "fpga_status   = 0x%08x\n", fpga[0x00/4]);
+    uint32_t fpga_stat = fpga[0x00/4];
+    snprintf(buf, sizeof(buf), "fpga_status   = 0x%08x\n", fpga_stat);
     msg(buf);
     snprintf(buf, sizeof(buf), "fpga_ctrl     = 0x%08x\n", fpga[0x04/4]);
     msg(buf);
+    /* Check FPGA is in User Mode (mode field bits[2:0] == 4 means user/operating) */
+    int fpga_configured = (fpga_stat & 0x7) == 0x4;
+    if (!fpga_configured) {
+        snprintf(buf, sizeof(buf), "WARN: FPGA mode=%d (not user mode 4), skipping H2F to avoid AXI hang\n", fpga_stat & 0x7);
+        msg(buf);
+    }
     munmap((void*)fpga, 0x1000);
 
     /* ---- SDRAM Controller: take F2SDRAM ports out of reset (0xFFC25080) ---- */
@@ -76,17 +83,8 @@ int main() {
     msg(buf);
     munmap((void*)sdr, 0x1000);
 
-    /* ---- Now try h2f bridge ---- */
-    msg("Attempting h2f read at 0xC0000000...\n");
-    volatile uint32_t *h2f = mmap(NULL, 0x1000, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0xC0000000);
-    if (h2f == MAP_FAILED) { msg("ERR: mmap h2f\n"); return 1; }
-    msg("mmap OK, reading...\n");
-    uint32_t val = h2f[0];
-    snprintf(buf, sizeof(buf), "h2f[0]=0x%08x SUCCESS!\n", val);
-    msg(buf);
-
-    munmap((void*)h2f, 0x1000);
+    /* ---- Skip h2f bridge test — let the test programs do it ---- */
     close(fd);
-    msg("DONE\n");
+    msg("DONE — bridges enabled, h2f test skipped (will be tested by ddr3_test)\n");
     return 0;
 }

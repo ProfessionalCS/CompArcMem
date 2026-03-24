@@ -1,0 +1,11 @@
+[Unit]
+Description=Enable FPGA bridges via /dev/mem register writes
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/root/deploy/fix_bridges_boot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
