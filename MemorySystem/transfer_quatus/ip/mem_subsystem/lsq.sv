@@ -347,7 +347,8 @@ module lsq # (
             // Cycle N: tlb_pending is waiting upon $L1 response and tlb_req is triggered
             // Cycle N+1: the TLB registered outputs are valid
             // On a hit: update the entry with the physical address
-            // On a miss: leave the entry unresolved; the processor must send OP_MEM_RESOLVE after the page-walk is done ?
+            // On a miss: invalidate the entry so it doesn't clog the queue
+            //            (software-managed TLB: caller must fill TLB before access)
             if (tlb_pending && tlb_hit) begin
                 tlb_req <= 0;
                 tlb_pending <= 0;
@@ -367,8 +368,11 @@ module lsq # (
                         cache_wdata <= '0;
                         cache_pending_idx <= tlb_pending_idx;
                         cache_pending <= 1;
+                    end else begin
+                        // Cache busy: mark resolved but leave VVALID=0 so the
+                        // rerun_invalidate_loads logic retries once cache frees.
+                        load_entries[tlb_pending_idx][VVALID_IDX] <= 0;
                     end
-                    // TODO: handle cache_ready=0 (stall or replay)
 
                 end else begin
                     store_entries[tlb_pending_idx][RESOLVED_IDX] <= 1;
@@ -376,6 +380,17 @@ module lsq # (
                     // Stores: do NOT write the cache here.
                     // The write is deferred to retirement so we only commit the youngest store to each address (WAW suppression)
                     // Writeback if non speculative
+                end
+            end else if (tlb_pending && !tlb_hit) begin
+                // TLB MISS: clear pending and invalidate the entry so it
+                // doesn't permanently clog the queue.  Software must fill
+                // the TLB and re-issue the operation.
+                tlb_req <= 0;
+                tlb_pending <= 0;
+                if (tlb_pending_is_load) begin
+                    load_entries[tlb_pending_idx][VALID_IDX] <= 0;
+                end else begin
+                    store_entries[tlb_pending_idx][VALID_IDX] <= 0;
                 end
             end
 

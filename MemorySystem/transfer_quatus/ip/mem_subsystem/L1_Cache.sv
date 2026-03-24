@@ -38,6 +38,7 @@ input  logic         req_write,               // 1=Store, 0=Load operation
 input  logic [63:0]  req_wdata,               // Eight bytes of data to write
 output logic         resp_valid,              // Data ready: read response or write ack
 output logic [63:0]  resp_rdata,              // Eight-byte result from read hit
+output logic         resp_is_load,            // 1 = resp_valid is for a load (data valid in resp_rdata)
 
 //L2 
 output logic         l2_req_valid,            // Signal: requesting cache line from L2
@@ -77,6 +78,7 @@ assign resp_rdata = refill_resp_valid ? refill_resp_data : grabbedData;
 logic resp_valid_read_hit, resp_valid_write;
 logic read_hit_pending, write_ack_pending;
 assign resp_valid = resp_valid_read_hit | refill_resp_valid | resp_valid_write;
+assign resp_is_load = resp_valid_read_hit | refill_resp_valid;
 
 
 // We are doing the index nits 
