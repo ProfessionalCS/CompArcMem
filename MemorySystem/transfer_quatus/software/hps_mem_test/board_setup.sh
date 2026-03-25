@@ -47,6 +47,7 @@ compile_if fix_bridges.c   fix_bridges
 compile_if enable_bridges.c enable_bridges
 compile_if test_h2f.c      test_h2f
 compile_if devmem2.c       devmem2
+compile_if tlb_evict.c     tlb_evict
 
 # Put devmem2 on PATH if compiled
 [ -f devmem2 ] && cp devmem2 /usr/local/bin/devmem2 2>/dev/null || true

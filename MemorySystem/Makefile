@@ -136,6 +136,15 @@ hps-test:
 QUARTUS_DIR := transfer_quatus
 SOF_FILE    := $(QUARTUS_DIR)/output_files/DE10_NANO_SoC_GHRD.sof
 RBF_FILE    := $(QUARTUS_DIR)/output_files/soc_system.rbf
+PATCHED_DTB_FILE := $(QUARTUS_DIR)/socfpga_cyclone5_de0_nano_soc.dtb
+
+# FAT bootstrap staging (host-side)
+BOOTFAT_DIR ?=
+BOOTFAT_STAGE_SUBDIR ?= mem_autodeploy
+BOOTFAT_STAGE_DIR := $(BOOTFAT_DIR)/$(BOOTFAT_STAGE_SUBDIR)
+BOOTFAT_STAGE_PAYLOAD := $(BOOTFAT_STAGE_DIR)/payload
+BOOTFAT_STAGE_HPS := $(BOOTFAT_STAGE_PAYLOAD)/hps_mem_test
+BOOTFAT_STAGE_TRACES := $(BOOTFAT_STAGE_PAYLOAD)/traces
 
 .PHONY: rbf
 rbf: $(RBF_FILE)
@@ -143,6 +152,43 @@ rbf: $(RBF_FILE)
 $(RBF_FILE): $(SOF_FILE)
 	quartus_cpf -c -o bitstream_compression=on $< $@
 	@echo "Created $@"
+
+.PHONY: fat-stage
+fat-stage:
+	@test -n "$(BOOTFAT_DIR)" || \
+		(echo "Set BOOTFAT_DIR=/path/to/mounted/bootfat on the host" && exit 1)
+	@test -d "$(BOOTFAT_DIR)" || \
+		(echo "BOOTFAT_DIR does not exist: $(BOOTFAT_DIR)" && exit 1)
+	@echo "Staging board-side recovery payload into $(BOOTFAT_STAGE_DIR) ..."
+	@mkdir -p "$(BOOTFAT_STAGE_HPS)" "$(BOOTFAT_STAGE_TRACES)"
+	cp fat_bootstrap.mk "$(BOOTFAT_STAGE_DIR)/Makefile"
+	cp fat_bootstrap.sh "$(BOOTFAT_STAGE_DIR)/fat_bootstrap.sh"
+	cp fat_prepare_reboot.sh "$(BOOTFAT_STAGE_DIR)/fat_prepare_reboot.sh"
+	@chmod +x "$(BOOTFAT_STAGE_DIR)/fat_bootstrap.sh" 2>/dev/null || true
+	@chmod +x "$(BOOTFAT_STAGE_DIR)/fat_prepare_reboot.sh" 2>/dev/null || true
+	cp "$(RBF_FILE)" "$(BOOTFAT_STAGE_PAYLOAD)/soc_system.rbf"
+	@if [ -f "$(PATCHED_DTB_FILE)" ]; then \
+		cp "$(PATCHED_DTB_FILE)" "$(BOOTFAT_STAGE_PAYLOAD)/good.dtb"; \
+	else \
+		echo "WARN: patched DTB not found at $(PATCHED_DTB_FILE)"; \
+		echo "      board-side prep will patch the on-board DTB with dtc if available."; \
+	fi
+	cp $(HPS_SRC_DIR)/* "$(BOOTFAT_STAGE_HPS)/"
+	@if ls $(TRACE_DIR)/*.bin >/dev/null 2>&1; then \
+		cp $(TRACE_DIR)/*.bin "$(BOOTFAT_STAGE_TRACES)/"; \
+	else \
+		echo "WARN: no trace binaries found under $(TRACE_DIR)"; \
+	fi
+	@echo "Offline board payload staged."
+	@echo "Initial board-side command:"
+	@echo "  make -f /mnt/bootfat/$(BOOTFAT_STAGE_SUBDIR)/Makefile temp"
+
+.PHONY: fat-clean
+fat-clean:
+	@test -n "$(BOOTFAT_DIR)" || \
+		(echo "Set BOOTFAT_DIR=/path/to/mounted/bootfat on the host" && exit 1)
+	rm -rf "$(BOOTFAT_STAGE_DIR)"
+	@echo "Removed $(BOOTFAT_STAGE_DIR)"
 
 # ── Board connection defaults ────────────────────────────────────────────
 BOARD_IP   ?= 192.168.0.2
@@ -176,7 +222,7 @@ deploy-quick:
 		$(HPS_SRC_DIR)/devmem_verify.c \
 		$(HPS_SRC_DIR)/fpga_manual.c $(HPS_SRC_DIR)/enable_bridges.c \
 		$(HPS_SRC_DIR)/fix_bridges.c $(HPS_SRC_DIR)/test_h2f.c \
-		$(HPS_SRC_DIR)/devmem2.c $(HPS_SRC_DIR)/board_setup.sh \
+		$(HPS_SRC_DIR)/devmem2.c $(HPS_SRC_DIR)/tlb_evict.c $(HPS_SRC_DIR)/board_setup.sh \
 		$(HPS_SRC_DIR)/run_trace.sh \
 		$(BOARD_USER)@$(BOARD_IP):/root/deploy/
 	$(BSCP) mem-traces-v2/traces/dgemm3_lsq88.bin \
@@ -191,6 +237,7 @@ deploy-quick:
 		gcc -O2 -o fix_bridges fix_bridges.c && \
 		gcc -O2 -o test_h2f test_h2f.c 2>/dev/null || true && \
 		gcc -O2 -o devmem2 devmem2.c 2>/dev/null || true && \
+		gcc -O2 -o tlb_evict tlb_evict.c 2>/dev/null || true && \
 		cp devmem2 /usr/local/bin/devmem2 2>/dev/null || true && \
 		echo BUILD_OK"
 	@echo "Quick deploy done. Run: make board-ddr3  (DDR3 proof) or make board-smoke"
@@ -332,6 +379,10 @@ help:
 	@echo "    make deploy              Full deployment (DTB + RBF + auto-bridge + reboot)"
 	@echo "    make deploy-quick        Upload sources + compile (no reboot)"
 	@echo "    make recover             Full recovery from corrupted/fresh image"
+	@echo "    make fat-stage BOOTFAT_DIR=/path/to/bootfat"
+	@echo "                             Stage a board-side recover-until-reboot payload onto boot FAT"
+	@echo "    make fat-clean BOOTFAT_DIR=/path/to/bootfat"
+	@echo "                             Remove the staged board-side payload from boot FAT"
 	@echo ""
 	@echo "  Board Operations:"
 	@echo "    make board-setup         Compile + service + bridges + test (all-in-one)"
