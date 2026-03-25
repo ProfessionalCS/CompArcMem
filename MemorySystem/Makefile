@@ -222,7 +222,9 @@ deploy-quick:
 		$(HPS_SRC_DIR)/devmem_verify.c \
 		$(HPS_SRC_DIR)/fpga_manual.c $(HPS_SRC_DIR)/enable_bridges.c \
 		$(HPS_SRC_DIR)/fix_bridges.c $(HPS_SRC_DIR)/test_h2f.c \
-		$(HPS_SRC_DIR)/devmem2.c $(HPS_SRC_DIR)/tlb_evict.c $(HPS_SRC_DIR)/board_setup.sh \
+		$(HPS_SRC_DIR)/devmem2.c $(HPS_SRC_DIR)/tlb_evict.c $(HPS_SRC_DIR)/true_stress_test.c \
+		$(HPS_SRC_DIR)/cache_evict.c $(HPS_SRC_DIR)/clear_tlb.c \
+		$(HPS_SRC_DIR)/board_setup.sh \
 		$(HPS_SRC_DIR)/run_trace.sh \
 		$(BOARD_USER)@$(BOARD_IP):/root/deploy/
 	$(BSCP) mem-traces-v2/traces/dgemm3_lsq88.bin \
@@ -238,6 +240,9 @@ deploy-quick:
 		gcc -O2 -o test_h2f test_h2f.c 2>/dev/null || true && \
 		gcc -O2 -o devmem2 devmem2.c 2>/dev/null || true && \
 		gcc -O2 -o tlb_evict tlb_evict.c 2>/dev/null || true && \
+		gcc -O2 -o true_stress_test true_stress_test.c 2>/dev/null || true && \
+		gcc -O2 -o cache_evict cache_evict.c 2>/dev/null || true && \
+		gcc -O2 -o clear_tlb clear_tlb.c 2>/dev/null || true && \
 		cp devmem2 /usr/local/bin/devmem2 2>/dev/null || true && \
 		echo BUILD_OK"
 	@echo "Quick deploy done. Run: make board-ddr3  (DDR3 proof) or make board-smoke"
@@ -284,6 +289,19 @@ board-ddr3:
 board-devmem-verify:
 	@echo "Running devmem_verify on board $(BOARD_IP) ..."
 	$(SSH) "cd /root/deploy && ./devmem_verify 2>&1"
+
+# ── Evict all L1 + L2 cache entries ──────────────────────────────────────
+EVICT_PAGES ?= 6
+.PHONY: board-cache-evict
+board-cache-evict:
+	@echo "Evicting all L1 + L2 cache entries on board $(BOARD_IP) ..."
+	$(SSH) "cd /root/deploy && ./cache_evict $(EVICT_PAGES) 2>&1"
+
+# ── Clear all TLB entries ────────────────────────────────────────────────
+.PHONY: board-clear-tlb
+board-clear-tlb:
+	@echo "Clearing all TLB entries on board $(BOARD_IP) ..."
+	$(SSH) "cd /root/deploy && ./clear_tlb 2>&1"
 
 # ── Run manual_test correctness suite ────────────────────────────────────
 .PHONY: board-test
@@ -389,6 +407,8 @@ help:
 	@echo "    make board-smoke         Smoke test (store + load back)"
 	@echo "    make board-ddr3          DDR3 proof: store → evict → load from DDR3 (PASS/FAIL)"
 	@echo "    make board-devmem-verify  Store via FPGA, read back with CPU /dev/mem (gold proof)"
+	@echo "    make board-cache-evict   Evict all L1 + L2 entries with garbage"
+	@echo "    make board-clear-tlb     Clear all 16 TLB entries"
 	@echo "    make board-test          Run manual_test correctness suite"
 	@echo "    make board-trace         Replay trace file (TRACE_DELAY=10)"
 	@echo "    make board-status        FPGA + bridges + H2F test"
