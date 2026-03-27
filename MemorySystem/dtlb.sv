@@ -32,12 +32,11 @@ module dtlb #(
 /* verilator lint_on UNUSEDSIGNAL */
 
     //parameters
-    localparam int unsigned VPN_BITS  = VADDR_BITS - PAGE_OFF;
-    localparam int unsigned PPN_BITS  = PADDR_BITS - PAGE_OFF;
-    localparam int unsigned PLRU_BITS = NUM_ENTRIES - 1;
-    localparam int unsigned IDX_BITS  = $clog2(NUM_ENTRIES);
-
-    //NUM_ENTRIES/2 - 1
+    localparam int unsigned VPN_BITS       = VADDR_BITS - PAGE_OFF;
+    localparam int unsigned PPN_BITS       = PADDR_BITS - PAGE_OFF;
+    localparam int unsigned PLRU_BITS      = NUM_ENTRIES - 1;
+    localparam int unsigned IDX_BITS       = $clog2(NUM_ENTRIES);
+    localparam int unsigned DEPTH          = $clog2(NUM_ENTRIES); // tree depth = log2(N)
     localparam int unsigned PLRU_LEAF_BASE = NUM_ENTRIES / 2 - 1;
 
     // Elaboration-time sanity check
@@ -127,51 +126,50 @@ module dtlb #(
     end
 
     // ------------------------------------------------------------------
-    // Pseudo-LRU victim selection (combinational tree walk)
+    // Pseudo-LRU victim selection (parameterised tree walk)
     //
-    // Tree node layout (0-indexed), generalised for NUM_ENTRIES leaves:
-    //   node 0                          : root
-    //   nodes 1..2                      : level 1
+    // Tree node layout (0-indexed), generalised for any power-of-2 NUM_ENTRIES:
+    //   node 0                                     : root
+    //   nodes 1..2                                 : level 1
     //   ...
-    //   nodes PLRU_LEAF_BASE..PLRU_BITS-1 : leaf-level nodes, each governs a pair
+    //   nodes PLRU_LEAF_BASE..PLRU_BITS-1          : leaf-level nodes (each governs a pair)
     //
+    // Walk descends DEPTH-1 levels from root, then decodes the final leaf node.
     // Bit=0 -> go left (lower index); Bit=1 -> go right (higher index)
     // ------------------------------------------------------------------
-    logic [IDX_BITS-1:0] ni0, ni1, ni2;
     logic [IDX_BITS-1:0] victim_idx;
 
     always_comb begin
-        ni0        = plru_tree[0] ? IDX_BITS'(2) : IDX_BITS'(1);
-        ni1        = plru_tree[ni0] ? IDX_BITS'(ni0 * 2 + 2) : IDX_BITS'(ni0 * 2 + 1);
-        ni2        = plru_tree[ni1] ? IDX_BITS'(ni1 * 2 + 2) : IDX_BITS'(ni1 * 2 + 1);
-        victim_idx = plru_tree[ni2]
-                        ? IDX_BITS'((ni2 - IDX_BITS'(PLRU_LEAF_BASE)) * 2 + 1)
-                        : IDX_BITS'((ni2 - IDX_BITS'(PLRU_LEAF_BASE)) * 2);
+        logic [IDX_BITS-1:0] curr;
+        curr = '0;  // start at root
+        // Descend DEPTH-1 levels to reach the leaf-level node
+        for (int d = 0; d < DEPTH - 1; d++)
+            curr = plru_tree[curr] ? IDX_BITS'(curr * 2 + 2) : IDX_BITS'(curr * 2 + 1);
+        // Decode which of the two entries the leaf node points to
+        victim_idx = plru_tree[curr]
+                        ? IDX_BITS'((curr - IDX_BITS'(PLRU_LEAF_BASE)) * 2 + 1)
+                        : IDX_BITS'((curr - IDX_BITS'(PLRU_LEAF_BASE)) * 2);
     end
 
-
-    // Pseudo-LRU update function
-    // Flips nodes along root->leaf path to point AWAY from accessed entry.
+    // Pseudo-LRU update function (parameterised walk from leaf to root)
+    // Flips nodes along the leaf->root path to point AWAY from accessed entry.
     function automatic logic [PLRU_BITS-1:0] plru_update(
         input logic [PLRU_BITS-1:0] tree,
         input logic [IDX_BITS-1:0]  idx
     );
         logic [PLRU_BITS-1:0] t;
-        logic [IDX_BITS-1:0]  n3, n2, n1;
+        logic [IDX_BITS-1:0]  node, parent;
 
-        t     = tree;
-        // Level-3 (leaf-level) node: PLRU_LEAF_BASE + idx/2
-        n3    = IDX_BITS'(PLRU_LEAF_BASE) + {1'b0, idx[IDX_BITS-1:1]};
-        t[n3] = ~idx[0];  // point away from leaf
-
-        n2    = IDX_BITS'((n3 - 1) >> 1);  // parent of n3
-        t[n2] = (n3 == IDX_BITS'(n2 * 2 + 2)) ? 1'b0 : 1'b1;
-
-        n1    = IDX_BITS'((n2 - 1) >> 1);  // parent of n2
-        t[n1] = (n2 == IDX_BITS'(n1 * 2 + 2)) ? 1'b0 : 1'b1;
-
-        t[0]  = (n1 == IDX_BITS'(2)) ? 1'b0 : 1'b1;  // root
-
+        t    = tree;
+        // Leaf-level node governing this entry: PLRU_LEAF_BASE + idx/2
+        node    = IDX_BITS'(PLRU_LEAF_BASE) + IDX_BITS'({1'b0, idx[IDX_BITS-1:1]});
+        t[node] = ~idx[0];  // point away from this leaf
+        // Walk up DEPTH-1 edges to reach and update the root
+        for (int d = 0; d < DEPTH - 1; d++) begin
+            parent    = IDX_BITS'((node - 1) >> 1);
+            t[parent] = (node == IDX_BITS'(parent * 2 + 2)) ? 1'b0 : 1'b1;
+            node      = parent;
+        end
         return t;
     endfunction
 

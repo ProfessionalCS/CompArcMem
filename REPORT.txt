@@ -1,0 +1,17 @@
+Policy       Accesses    Misses   MPKI
+Tree-PLRU    2,653      1,065    401.43
+FIFO         2,680      1,110    414.18
+Tree-PLRU wins by 3% — 45 fewer misses and MPKI of 401 vs 414. 
+the Fist in first out loses by a vary small margin
+
+The L2_copy is the LRU and the L2_FIFO has the Fist in first out Policy
+
+
+We did LSQ seprate Queues for load and store + 
+The TLB is peramaterized 
+L2 is kinda pipelined but not completed in its entirety :< spent a night it did not work to make it fully pipelined 
+
+Then the extra credit for the documents.
+
+ BTW i have a clean project on Github for ease of use if you want it a clean
+repository that has a simple adder and a drag and drop feature. Let me know if you want it FREE Of charge.
